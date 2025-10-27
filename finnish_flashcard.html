@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finnish Flashcards: Sanoja Oppimassa</title>
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuration for Inter font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'finnish-blue': '#003F67',
+                        'finnish-white': '#F5F5F5',
+                        'card-bg': '#FFFFFF',
+                        'review-red': '#EF4444',
+                        'learned-green': '#10B981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom CSS for the 3D card flip effect */
+        .flashcard {
+            perspective: 1000px; /* Gives the 3D perspective */
+            height: 350px; /* Fixed height for consistent look */
+            max-width: 500px; /* <-- INCREASED WIDTH HERE */
+        }
+
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.8s ease-in-out;
+            transform-style: preserve-3d;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 1.5rem;
+        }
+
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden; /* Hide the back of the card on the front side */
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            border-radius: 1.5rem;
+            border: 2px solid #ccc;
+        }
+
+        .flashcard-front {
+            background-color: var(--tw-bg-card-bg);
+            color: #1F2937; /* Dark text */
+        }
+
+        .flashcard-back {
+            background-color: #0077b6; /* A nice bright blue */
+            color: white;
+            transform: rotateY(180deg);
+            border: 2px solid #003F67; /* Finnish blue border */
+        }
+
+        /* Animation for correct answer feedback */
+        @keyframes pop-up {
+            0% { transform: scale(1); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+        .correct-feedback {
+            animation: pop-up 0.5s ease-out;
+        }
+
+        /* Status message fade-in/out */
+        @keyframes fade-in-out {
+            0% { opacity: 0; transform: translateY(10px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        .status-visible {
+            animation: fade-in-out 3s ease-in-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center p-4 font-sans">
+
+    <!-- Header and Title -->
+    <header class="text-center mb-8 w-full max-w-xl">
+        <h1 class="text-4xl font-extrabold text-finnish-blue">
+            🇫🇮 Sanoja Oppimassa
+        </h1>
+        <p class="text-gray-600 mt-2 text-lg">Your daily Finnish vocabulary boost!</p>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="w-full max-w-lg flex flex-col items-center">
+
+        <!-- Scoreboard and Progress (NOW CLICKABLE) -->
+        <div class="flex justify-between w-full mb-6 p-3 bg-white rounded-xl shadow-lg border border-gray-200">
+            <div id="learned-score-area" class="text-center cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition duration-150" onclick="showCardList('learned')">
+                <p id="score-correct" class="text-3xl font-bold text-learned-green">0</p>
+                <p class="text-xs text-gray-500 uppercase tracking-wider">Learned</p>
+            </div>
+            <div id="review-score-area" class="text-center cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition duration-150" onclick="showCardList('review')">
+                <p id="score-review" class="text-3xl font-bold text-review-red">0</p>
+                <p class="text-xs text-gray-500 uppercase tracking-wider">Review</p>
+            </div>
+            <div id="remaining-score-area" class="text-center cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition duration-150" onclick="showCardList('remaining')">
+                <p id="cards-remaining" class="text-3xl font-bold text-finnish-blue">10</p>
+                <p class="text-xs text-gray-500 uppercase tracking-wider">Remaining</p>
+            </div>
+        </div>
+
+        <!-- Flashcard Component -->
+        <div id="flashcard" class="flashcard w-full mb-8" onclick="flipCard()">
+            <div class="flashcard-inner transition-transform duration-500" id="card-inner">
+                <!-- Front (Finnish Word) -->
+                <div class="flashcard-front shadow-xl" id="card-front">
+                    <p class="text-sm uppercase tracking-widest text-gray-500 mb-4">Finnish Term</p>
+                    <h2 class="text-4xl font-extrabold" id="card-word">Click Start to Begin!</h2>
+                </div>
+                <!-- Back (English Translation) -->
+                <div class="flashcard-back shadow-xl text-finnish-white" id="card-back">
+                    <p class="text-sm uppercase tracking-widest opacity-80 mb-4">Meaning</p>
+                    <h2 class="text-5xl font-extrabold" id="card-translation">Start</h2>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Correct Feedback Animation Element -->
+        <div id="feedback-message" class="absolute z-10 text-6xl font-black text-green-500 opacity-0 pointer-events-none">
+            ✅ Oikein!
+        </div>
+
+        <!-- Grammar Tip Box (Kielioppivinkki) -->
+        <div id="grammar-tip-box" class="hidden w-full max-w-md p-4 bg-white border-l-4 border-learned-green rounded-xl shadow-inner transition duration-300">
+            <p class="text-sm font-bold uppercase text-green-700 mb-1 flex items-center">
+                <span class="mr-2 text-xl">💡</span> Kielioppivinkki (Grammar Tip)
+            </p>
+            <p id="grammar-tip-text" class="text-gray-700 text-base"></p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="w-full max-w-md mt-6">
+            <!-- Initial Start Button / Show Answer -->
+            <button id="show-answer-btn" class="w-full py-4 mb-4 text-white bg-finnish-blue rounded-xl font-semibold shadow-lg hover:bg-blue-700 transition duration-150 transform hover:scale-[1.01] active:scale-[0.98]" onclick="flipCard()">
+                Start Learning
+            </button>
+
+            <!-- Grading Buttons (Hidden initially) -->
+            <div id="grading-controls" class="hidden flex justify-between space-x-4">
+                <button id="needs-review-btn" class="flex-1 py-3 text-white bg-review-red rounded-xl font-semibold shadow-md hover:bg-red-600 transition duration-150 transform hover:scale-105 active:scale-95" onclick="nextCard(false)">
+                    Needs Review
+                </button>
+                <button id="correct-btn" class="flex-1 py-3 text-white bg-learned-green rounded-xl font-semibold shadow-md hover:bg-green-600 transition duration-150 transform hover:scale-105 active:scale-95" onclick="nextCard(true)">
+                    Learned!
+                </button>
+            </div>
+
+            <!-- Restart Button (Hidden initially) -->
+            <button id="restart-btn" class="hidden w-full py-4 mt-6 text-finnish-blue border-2 border-finnish-blue rounded-xl font-semibold hover:bg-finnish-blue hover:text-white transition duration-200" onclick="initializeSession()">
+                Restart Session
+            </button>
+
+            <!-- End of Session Message -->
+            <div id="completion-message" class="hidden text-center mt-8 p-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-lg" role="alert">
+                <p class="font-bold text-xl">Session Complete!</p>
+                <p>Mahtavaa! You've reviewed all the words. Time to restart and focus on the cards you marked for review!</p>
+            </div>
+        </div>
+        
+        <!-- Status Message for Modal Actions -->
+        <div id="status-message" class="mt-4 p-3 text-center text-sm font-medium bg-gray-100 text-gray-700 rounded-xl transition duration-300 opacity-0">
+            <!-- Messages will be injected here -->
+        </div>
+
+    </main>
+    
+    <!-- Word List Modal -->
+    <div id="word-list-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            
+            <!-- Modal Header -->
+            <div class="sticky top-0 bg-white p-4 border-b flex justify-between items-center z-10">
+                <h3 id="modal-title" class="text-2xl font-bold text-finnish-blue">Word List</h3>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            </div>
+            
+            <!-- Modal Body (Word List) -->
+            <div id="modal-content" class="p-4 space-y-3">
+                <!-- Word list items will be injected here -->
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- 1. DATA SETUP ---
+        // Final, cleaned, and unique vocabulary list (1158 unique cards)
+        // --- 1. DATA SETUP: Combined List (Total ~1000 Unique Cards, A1-B1 Focused) ---
+
+const FINNISH_VOCAB = [
+    // --- BLOCK A1.1: Daily Essentials & Pronouns (A1 Core) (From Previous List) ---
+    { finnish: "Hei", english: "Hello", tip: "A common, friendly greeting. 'Moi' is also very common and a bit more casual.", level: "A1", id: 'daily1' },
+    { finnish: "Kiitos", english: "Thank you", tip: "To say 'You're welcome', you can say 'Ole hyvä' (singular) or 'Olkaa hyvä' (plural/polite).", level: "A1", id: 'daily2' },
+    { finnish: "Kyllä", english: "Yes", tip: "In casual speech, Finns almost always use 'Joo' (Yeah) instead.", level: "A1", id: 'daily3' },
+    { finnish: "Ei", english: "No", tip: "This is the negative verb's root: 'Minä en puhu' (I don't speak).", level: "A1", id: 'daily4' },
+    { finnish: "Mitä kuuluu?", english: "How are you?", tip: "A good response is 'Hyvää, kiitos.' (Good, thanks).", level: "A1", id: 'daily5' },
+    { finnish: "Minä", english: "I", tip: "Pronouns are often dropped because the verb ending already shows the person: '(Minä) olen' = I am.", level: "A1", id: 'daily6' },
+    { finnish: "Sinä", english: "You (singular)", tip: "The verb ending for 'sinä' is -t: '(Sinä) olet' = You are.", level: "A1", id: 'daily7' },
+    { finnish: "Hän", english: "He / She", tip: "Finnish has no grammatical gender! 'Hän' is used for everyone.", level: "A1", id: 'daily8' },
+    { finnish: "Me", english: "We", tip: "Verb ending is '-mme'. '(Me) olemme' = We are.", level: "A1", id: 'daily9' },
+    { finnish: "Te", english: "You (plural/polite)", tip: "Used for groups or to be formal. '(Te) olette' = You are.", level: "A1", id: 'daily10' },
+    { finnish: "He", english: "They", tip: "Verb ending is '-vat' / '-vät'. '(He) ovat' = They are.", level: "A1", id: 'daily11' },
+    { finnish: "Vesi", english: "Water", tip: "If you want 'some water', use the partitive case: 'Saisinko **vettä**?' (Could I have some water?).", level: "A1", id: 'daily12' },
+    { finnish: "Kahvi", english: "Coffee", tip: "Finns drink the most coffee! 'Haluatko **kahvia**?' (Do you want coffee?) - 'kahvia' is partitive.", level: "A1", id: 'daily13' },
+    { finnish: "Ruoka", english: "Food", tip: "'Hyvää ruokahalua!' = Enjoy your meal! (Bon appétit!).", level: "A1", id: 'daily14' },
+    { finnish: "Puhua", english: "To speak", tip: "Verb type 1. 'Minä puhun' (I speak), 'Hän puhuu' (He/she speaks).", level: "A1", id: 'daily15' },
+    { finnish: "Ymmärtää", english: "To understand", tip: "'Ymmärrän' (I understand). 'En ymmärrä' (I don't understand).", level: "A1", id: 'daily16' },
+    { finnish: "Asua", english: "To live (dwell)", tip: "Verb type 1. 'Minä asun Suomessa.' (I live in Finland). 'Suomessa' uses the inessive case (-ssa) for 'in'.", level: "A1", id: 'daily17' },
+    { finnish: "Opiskella", english: "To study", tip: "Verb type 3. 'Minä opiskelen **suomea**.' (I am studying Finnish). 'Suomea' is partitive.", level: "A1", id: 'daily18' },
+
+    // --- BLOCK A1.2: Numbers, Time, & Basic Places (A1 Core) (From Previous List) ---
+    { finnish: "Nolla", english: "Zero", tip: "Base number.", level: "A1", id: 'num1' },
+    { finnish: "Yksi", english: "One", tip: "When counting. The noun is singular: 'Yksi kirja' (One book).", level: "A1", id: 'num2' },
+    { finnish: "Kaksi", english: "Two", tip: "From 2 to 10, the noun is in the **partitive singular**: 'Kaksi **kirjaa**' (Two books).", level: "A1", id: 'num3' },
+    { finnish: "Kolme", english: "Three", tip: "The partitive rule applies: 'Kolme **kissaa**' (Three cats).", level: "A1", id: 'num4' },
+    { finnish: "Kymmenen", english: "Ten", tip: "The partitive rule applies: 'Kymmenen **pistettä**!' (Ten points!).", level: "A1", id: 'num11' },
+    { finnish: "Yksitoista", english: "Eleven", tip: "Finnish numbers 11-19 use 'number' + 'toista'. Noun is partitive singular: 'Yksitoista **vuotta**'.", level: "A1", id: 'num16' },
+    { finnish: "Kaksikymmentä", english: "Twenty", tip: "Compound numbers still take the **partitive singular**: 'Kaksikymmentä **euroa**'.", level: "A1", id: 'num21' },
+    { finnish: "Sata", english: "One hundred", tip: "For 200, it's 'kaksi **sataa**' (sata in partitive). For 100, the noun is singular: 'Sata euroa'.", level: "A1", id: 'num12' },
+    { finnish: "Tuhat", english: "One thousand", tip: "Takes partitive: 'Tuhat **järveä**' (A thousand lakes).", level: "A1", id: 'num13' },
+    { finnish: "Miljoona", english: "Million", tip: "The unit word is often partitive: 'Viisi **miljoonaa** euroa'.", level: "B1", id: 'num32' },
+    { finnish: "Ensimmäinen", english: "First", tip: "This is an ordinal number. 'Ensimmäinen kerta' (First time).", level: "A1", id: 'num14' },
+    { finnish: "Toinen", english: "Second", tip: "Also means 'other' or 'another'. 'Toinen päivä' (Second day / Another day).", level: "A1", id: 'num15' },
+    { finnish: "Päivä", english: "Day", tip: "Used in the formal greeting 'Hyvää päivää!'. The essive case: '**Päivänä**' (on the day).", level: "A1", id: 'time1' },
+    { finnish: "Viikko", english: "Week", tip: "'Tällä **viikolla**' (This week) - adessive case (-lla).", level: "A1", id: 'time2' },
+    { finnish: "Kuukausi", english: "Month", tip: "Plural is 'kuukaudet'. Months use the inessive case (-ssa) for 'in'.", level: "A1", id: 'time3' },
+    { finnish: "Vuosi", english: "Year", tip: "'Ensi **vuonna**' (Next year) - essive case (-na) used for time points.", level: "A1", id: 'time4' },
+    { finnish: "Maanantai", english: "Monday", tip: "Days of the week use the **essive case (-na)** to mean 'on': '**Maanantaina**'.", level: "A1", id: 'time5' },
+    { finnish: "Keskiviikko", english: "Wednesday", tip: "Literally 'middle of the week'. '**Keskiviikkona**' (On Wednesday).", level: "A1", id: 'time7' },
+    { finnish: "Perjantai", english: "Friday", tip: "'**Perjantaina**'. 'Hyvää viikonloppua!' (Have a good weekend!).", level: "A1", id: 'time9' },
+    { finnish: "Viikonloppu", english: "Weekend", tip: "'**Viikonloppuna**' (On the weekend) - essive case.", level: "A1", id: 'time12' },
+    { finnish: "Tänään", english: "Today", tip: "Time adverbs like this don't usually need case endings.", level: "A1", id: 'time29' },
+    { finnish: "Huomenna", english: "Tomorrow", tip: "'Nähdään **huomenna**!' (See you tomorrow!)", level: "A1", id: 'time30' },
+    { finnish: "Eilen", english: "Yesterday", tip: "'Se tapahtui eilen.' (It happened yesterday.)", level: "A1", id: 'time31' },
+    { finnish: "Tunti", english: "Hour", tip: "Partitive: '**tuntia**'. 'Kaksi tuntia.' (Two hours).", level: "A1", id: 'sched5' },
+    { finnish: "Minuutti", english: "Minute", tip: "Partitive: '**minuuttia**'.", level: "A1", id: 'sched6' },
+    { finnish: "Kaupunki", english: "City", tip: "'Asun **kaupungissa**.' (I live in the city) - inessive case (-ssa).", level: "A1", id: 'yki5' },
+    { finnish: "Asema", english: "Station (bus/train)", tip: "'Olen **asemalla**.' (I am at the station) - adessive case (-lla).", level: "A1", id: 'yki4' },
+    { finnish: "Talo", english: "House", tip: "'**Talossa**' (In the house) - inessive case.", level: "A1", id: 'house1' },
+    { finnish: "Asunto", english: "Apartment / Flat", tip: "'**Asunnossa**' (In the apartment) - inessive case.", level: "A1", id: 'house2' },
+
+    // --- BLOCK A1.3: Core Adjectives (A1 Core) (From Previous List) ---
+    { finnish: "Iso", english: "Big / Large", tip: "Vowel harmony means it changes to 'isossa' (inessive) or 'isolla' (adessive).", level: "A1", id: 'adj1' },
+    { finnish: "Pieni", english: "Small / Little", tip: "Pieni often causes **consonant gradation**: 'pieneen taloon' (into a small house).", level: "A1", id: 'adj2' },
+    { finnish: "Hyvä", english: "Good", tip: "The comparative is 'parempi' (better), and the superlative is 'paras' (best).", level: "A1", id: 'adj3' },
+    { finnish: "Huono", english: "Bad", tip: "The opposite of 'hyvä'.", level: "A1", id: 'adj4' },
+    { finnish: "Uusi", english: "New", tip: "Uusi is a noun type 2. In **partitive**: '**uutta**'.", level: "A1", id: 'adj5' },
+    { finnish: "Vanha", english: "Old", tip: "The opposite of 'uusi'.", level: "A1", id: 'adj6' },
+    { finnish: "Kallis", english: "Expensive", tip: "Partitive form is '**kallista**'.", level: "A1", id: 'adj9' },
+    { finnish: "Halpa", english: "Cheap", tip: "The opposite of 'kallis'.", level: "A1", id: 'adj10' },
+    { finnish: "Helppo", english: "Easy", tip: "Opposite of 'vaikea' (difficult). Partitive: '**helppoa**'.", level: "A1", id: 'adj11' },
+    { finnish: "Vaikea", english: "Difficult", tip: "Partitive is used for states/qualities: 'Se on **vaikeaa**.' (It is difficult).", level: "A1", id: 'adj12' },
+
+    // --- BLOCK A1.4: New A1 Core (Numbers 4-9, Basic Food, Common Nouns) ---
+    { finnish: "Neljä", english: "Four", tip: "All numbers 2-10 take the partitive singular noun: 'Neljä **talon**'.", level: "A1", id: 'new_num5' },
+    { finnish: "Viisi", english: "Five", tip: "Partitive: 'Viisi **euroa**'.", level: "A1", id: 'new_num6' },
+    { finnish: "Kuusi", english: "Six", tip: "Partitive: 'Kuusi **kirjaa**'.", level: "A1", id: 'new_num7' },
+    { finnish: "Seitsemän", english: "Seven", tip: "Partitive: 'Seitsemän **päivää**'.", level: "A1", id: 'new_num8' },
+    { finnish: "Kahdeksan", english: "Eight", tip: "Partitive: 'Kahdeksan **kappaletta**'.", level: "A1", id: 'new_num9' },
+    { finnish: "Yhdeksän", english: "Nine", tip: "Partitive: 'Yhdeksän **taloa**'.", level: "A1", id: 'new_num10' },
+    { finnish: "Leipä", english: "Bread", tip: "Partitive form: '**leipää**'. 'Ostan leipää.' (I buy bread).", level: "A1", id: 'new_food1' },
+    { finnish: "Maito", english: "Milk", tip: "Partitive form: '**maitoa**'. 'Haluan maitoa.' (I want milk).", level: "A1", id: 'new_food2' },
+    { finnish: "Liha", english: "Meat", tip: "Partitive form: '**lihaa**'.", level: "A1", id: 'new_food3' },
+    { finnish: "Kala", english: "Fish", tip: "Partitive form: '**kalaa**'.", level: "A1", id: 'new_food4' },
+    { finnish: "Olohuone", english: "Living room", tip: "Inessive case: '**Olohuoneessa**'.", level: "A1", id: 'new_place1' },
+    { finnish: "Makuuhuone", english: "Bedroom", tip: "Inessive case: '**Makuuhuoneessa**'.", level: "A1", id: 'new_place2' },
+    { finnish: "Pöytä", english: "Table", tip: "Adessive case (-lla) for 'on the table': '**Pöydällä**'.", level: "A1", id: 'new_place3' },
+    { finnish: "Tuoli", english: "Chair", tip: "Adessive case (-lla) for 'on the chair': '**Tuolilla**'.", level: "A1", id: 'new_place4' },
+    { finnish: "Sana", english: "Word", tip: "Partitive: '**sanaa**'. Plural: '**sanat**'.", level: "A1", id: 'new_noun1' },
+    { finnish: "Lause", english: "Sentence", tip: "Plural: '**lauseet**'.", level: "A1", id: 'new_noun2' },
+    { finnish: "Lapsi", english: "Child", tip: "Noun type 4. Genitive: '**lapsen**'. Partitive: '**lasta**'.", level: "A1", id: 'new_noun3' },
+    { finnish: "Opettaja", english: "Teacher", tip: "From the verb 'opettaa' (to teach).", level: "A1", id: 'new_noun4' },
+    { finnish: "Kieli", english: "Language", tip: "Noun type 2. Partitive: '**kieltä**'.", level: "A1", id: 'new_noun5' },
+    { finnish: "Aurinko", english: "Sun", tip: "'Aurinko paistaa' (The sun shines).", level: "A1", id: 'new_nature1' },
+    { finnish: "Sade", english: "Rain / Rainfall", tip: "From the verb 'sataa' (to rain). 'Sataa **vettä**.' (It is raining water).", level: "A1", id: 'new_nature2' },
+
+    // --- BLOCK A2.1: Core A1/B1 Verbs (From Previous List) ---
+    { finnish: "Mennä", english: "To go", tip: "Verb type 3. Takes the **illative case** (-an/-iin) for destination: 'Menen **kotiin**' (I go home).", level: "A1", id: 'verb1' },
+    { finnish: "Tulla", english: "To come", tip: "Verb type 3. Takes the **elative case** (-sta) for origin: 'Tulen **Suomesta**' (I come from Finland).", level: "A1", id: 'verb2' },
+    { finnish: "Nähdä", english: "To see", tip: "Verb type 2. 'Minä näen' (I see). Consonant gradation: 'Hän näkee'.", level: "A1", id: 'verb3' },
+    { finnish: "Olla", english: "To be", tip: "Verb type 3, but highly irregular. 'Minä olen', 'Hän on', 'Me olemme'.", level: "A1", id: 'verb4' },
+    { finnish: "Tehdä", english: "To do / To make", tip: "Verb type 2. 'Minä teen' (I do). 'Mitä teet?' (What are you doing?).", level: "A1", id: 'verb5' },
+    { finnish: "Haluta", english: "To want", tip: "Verb type 4. Takes the **partitive**: 'Haluan **leipää**.' (I want bread).", level: "A1", id: 'verb21' },
+    { finnish: "Odottaa", english: "To wait", tip: "Verb type 1. Requires the **partitive case**: 'Odotan **bussia**.' (I wait for the bus).", level: "A2", id: 'verb13' },
+    { finnish: "Auttaa", english: "To help", tip: "Verb type 1. Requires the **partitive case**: 'Autan **sinua**.' (I help you).", level: "A2", id: 'verb14' },
+    { finnish: "Syödä", english: "To eat", tip: "Verb type 2. Takes the **partitive**: 'Minä syön **ruokaa**.' (I eat food).", level: "A1", id: 'verb11' },
+    { finnish: "Juoda", english: "To drink", tip: "Verb type 2. Takes the **partitive**: 'Minä juon **kahvia**.' (I drink coffee).", level: "A1", id: 'verb12' },
+    { finnish: "Soittaa", english: "To call (phone) / To play (instrument)", tip: "Verb type 1. 'Soitan **sinulle**.' (I call you) - takes the **allative case (-lle)** for the person.", level: "A2", id: 'v110' },
+    { finnish: "Tuntea", english: "To know (a person/place)", tip: "Verb type 1. 'Tunnemme **hänet**.' (We know him/her) - object is in the accusative (total).", level: "A2", id: 'verb20' },
+    { finnish: "Tuntea", english: "To feel (emotionally)", tip: "Verb type 1. 'Minä tunnen itseni iloiseksi.' (I feel happy) - essive case used for the state.", level: "B1", id: 'daily_new5' },
+    { finnish: "Tarvita", english: "To need", tip: "Verb type 5. Takes the **partitive case**: 'Tarvitsen **apua**.' (I need help).", level: "A2", id: 'verb17' },
+    { finnish: "Maksaa", english: "To cost / To pay", tip: "'Paljonko tämä **maksaa**?' (How much does this cost?). 'Maksan **laskun**.' (I pay the bill).", level: "A1", id: 'money4' },
+    { finnish: "Lukea", english: "To read", tip: "Verb type 5. Takes the **partitive**: 'Minä luen **kirjaa**.' (I read a book).", level: "A2", id: 'verb33' },
+    { finnish: "Kirjoittaa", english: "To write", tip: "Verb type 1. Takes the **partitive**: 'Kirjoitan **sähköpostia**.' (I write an email).", level: "A2", id: 'verb34' },
+
+    // --- BLOCK A2.2: Essential Verbs (New A2/B1) ---
+    { finnish: "Saada", english: "To get / To receive", tip: "Verb type 2. 'Saan **rahaa**.' (I get money) - object is partitive.", level: "A1", id: 'new_verb1' },
+    { finnish: "Antaa", english: "To give", tip: "Verb type 1. Takes allative case for the receiver: 'Anna **minulle** kirja.'", level: "A1", id: 'new_verb2' },
+    { finnish: "Ostaa", english: "To buy", tip: "Verb type 1. Takes partitive for the object: 'Ostan **leipää**.'", level: "A1", id: 'new_verb3' },
+    { finnish: "Tietää", english: "To know (a fact)", tip: "Verb type 2. 'Tiedän sen.' (I know it).", level: "A2", id: 'new_verb4' },
+    { finnish: "Aloittaa", english: "To start / To begin", tip: "Verb type 1. 'Aloitan **työn**.' (I start the work) - object is accusative (total).", level: "A2", id: 'new_verb5' },
+    { finnish: "Lopettaa", english: "To stop / To finish", tip: "Verb type 1. Takes object in partitive: 'Lopetan **työskentelyn**.'", level: "A2", id: 'new_verb6' },
+    { finnish: "Lähteä", english: "To leave / To depart", tip: "Verb type 3. Takes **elative case (-stä)** for origin: 'Lähden **töistä**.' (I leave work).", level: "A2", id: 'new_verb7' },
+    { finnish: "Päästä", english: "To get to / To be allowed", tip: "Verb type 3. Takes **illative case (-an/-iin)**: 'Pääsen **kotiin**.' (I get home).", level: "A2", id: 'new_verb8' },
+    { finnish: "Unohtaa", english: "To forget", tip: "Verb type 1. Takes object in accusative: 'Unohdin **avaimet**.'", level: "A2", id: 'new_verb9' },
+    { finnish: "Muistaa", english: "To remember", tip: "Verb type 1. Takes object in accusative: 'Muistan **nimesi**.'", level: "A2", id: 'new_verb10' },
+    { finnish: "Sanoa", english: "To say", tip: "Verb type 1. 'Mitä sinä sanot?' (What do you say?).", level: "A2", id: 'new_verb11' },
+    { finnish: "Vastata", english: "To answer / To reply", tip: "Verb type 4. Takes **illative case (-an/-iin)** for the question: 'Vastaan **kysymykseen**.'", level: "B1", id: 'new_verb12' },
+    { finnish: "Käydä", english: "To visit / To happen", tip: "Verb type 2. Takes **inessive case (-ssa)** for place: 'Käyn **kaupassa**.' (I visit the shop).", level: "B1", id: 'new_verb13' },
+    { finnish: "Seisoa", english: "To stand", tip: "Verb type 1. Locative: 'Seison **oven edessä**.' (I stand in front of the door).", level: "B1", id: 'new_verb14' },
+    { finnish: "Istua", english: "To sit", tip: "Verb type 1. Locative: 'Istun **tuolilla**.' (I sit on the chair).", level: "B1", id: 'new_verb15' },
+    { finnish: "Kysyä", english: "To ask", tip: "Verb type 1. Takes object in partitive: 'Kysyn **neuvoa**.' (I ask for advice).", level: "B1", id: 'new_verb16' },
+
+    // --- BLOCK A2.3: Places, Rooms, & Directions (A2) ---
+    { finnish: "Keittiö", english: "Kitchen", tip: "Inessive: '**Keittiössä**'.", level: "A1", id: 'new_room1' },
+    { finnish: "Kylpyhuone", english: "Bathroom", tip: "Inessive: '**Kylpyhuoneessa**'.", level: "A1", id: 'new_room2' },
+    { finnish: "Ikkuna", english: "Window", tip: "Elative (-sta): '**Ikkunasta**' (out of the window).", level: "A2", id: 'new_room3' },
+    { finnish: "Ovi", english: "Door", tip: "Illative (-an): '**Oveen**' (into the door).", level: "A2", id: 'new_room4' },
+    { finnish: "Seinä", english: "Wall", tip: "Adessive (-lla): '**Seinällä**' (on the wall).", level: "A2", id: 'new_room5' },
+    { finnish: "Latua", english: "Floor", tip: "Adessive (-lla): '**Latialla**' (on the floor).", level: "A2", id: 'new_room6' },
+    { finnish: "Ylhäällä", english: "Up / Upstairs", tip: "Locative adverb.", level: "A2", id: 'new_dir1' },
+    { finnish: "Alhaalla", english: "Down / Downstairs", tip: "Locative adverb.", level: "A2", id: 'new_dir2' },
+    { finnish: "Oikealla", english: "On the right", tip: "Adessive adverb.", level: "A2", id: 'new_dir3' },
+    { finnish: "Vasemmalla", english: "On the left", tip: "Adessive adverb.", level: "A2", id: 'new_dir4' },
+    { finnish: "Edessä", english: "In front of", tip: "Takes the **genitive case**: 'Talon **edessä**.' (In front of the house).", level: "A2", id: 'new_dir5' },
+    { finnish: "Takana", english: "Behind", tip: "Takes the **genitive case**: 'Pöydän **takana**.' (Behind the table).", level: "A2", id: 'new_dir6' },
+    { finnish: "Vieressä", english: "Next to", tip: "Takes the **genitive case**: 'Oven **vieressä**.' (Next to the door).", level: "A2", id: 'new_dir7' },
+    { finnish: "Täällä", english: "Here (inessive/location)", tip: "Used for 'in/at this place'. 'Olen täällä.' (I am here).", level: "A2", id: 'new_dir8' },
+    { finnish: "Tänne", english: "To here (illative/direction)", tip: "Used for movement *to* this place. 'Tule tänne!' (Come here!).", level: "A2", id: 'new_dir9' },
+    { finnish: "Täältä", english: "From here (elative/source)", tip: "Used for movement *from* this place. 'Lähden täältä.' (I leave from here).", level: "A2", id: 'new_dir10' },
+
+    // --- BLOCK A2.4: New A2/B1 Nouns (People, Profession, Feelings) ---
+    { finnish: "Äiti", english: "Mother", tip: "Inessive: '**Äidissä**'.", level: "A1", id: 'new_fam1' },
+    { finnish: "Isä", english: "Father", tip: "Inessive: '**Isässä**'.", level: "A1", id: 'new_fam2' },
+    { finnish: "Sisko", english: "Sister", tip: "Plural: '**Siskot**'.", level: "A1", id: 'new_fam3' },
+    { finnish: "Veli", english: "Brother", tip: "Partitive: '**Veljeä**'.", level: "A1", id: 'new_fam4' },
+    { finnish: "Tyttö", english: "Girl", tip: "Partitive: '**Tyttöä**'.", level: "A1", id: 'new_fam5' },
+    { finnish: "Poika", english: "Boy", tip: "Partitive: '**Poikaa**'.", level: "A1", id: 'new_fam6' },
+    { finnish: "Työntekijä", english: "Employee / Worker", tip: "Literally 'work-doer'.", level: "A2", id: 'new_prof1' },
+    { finnish: "Myyjä", english: "Salesperson", tip: "From the verb 'myydä' (to sell).", level: "A2", id: 'new_prof2' },
+    { finnish: "Harrastus", english: "Hobby", tip: "'Mikä on sinun **harrastuksesi**?' (What is your hobby?) - possessive suffix used.", level: "A2", id: 'new_noun6' },
+    { finnish: "Perhe", english: "Family", tip: "'Minun **perheeni**.' (My family) - possessive suffix used.", level: "A2", id: 'new_noun7' },
+    { finnish: "Onnellinen", english: "Happy / Fortunate", tip: "The state of being happy: 'Olen **onnellinen**.' (I am happy).", level: "A2", id: 'new_feel1' },
+    { finnish: "Surullinen", english: "Sad", tip: "Opposite of onnellinen.", level: "A2", id: 'new_feel2' },
+    { finnish: "Viha", english: "Anger / Hatred", tip: "From '**vihainen**' (angry).", level: "B1", id: 'new_feel3' },
+    { finnish: "Pelko", english: "Fear", tip: "'Pelkään **pimeää**.' (I fear the dark) - partitive case for the object.", level: "B1", id: 'new_feel4' },
+
+    // --- BLOCK B1.1: Work, Tech, & Abstract Nouns (B1 Core) (From Previous List) ---
+    { finnish: "Työ", english: "Work / Job", tip: "The fixed locative for 'at work' is '**töissä**' (a plural inessive form).", level: "A1", id: 'work1' },
+    { finnish: "Työpaikka", english: "Workplace", tip: "'**Työpaikalla**' (At the workplace) - adessive case (-lla).", level: "A2", id: 'work2' },
+    { finnish: "Palkka", english: "Salary / Wage", tip: "'Saan hyvää **palkkaa**.' (I get a good salary) - partitive object.", level: "B1", id: 'work6' },
+    { finnish: "Kokous", english: "Meeting", tip: "'Olen **kokouksessa**.' (I am in a meeting) - inessive case.", level: "B1", id: 'work7' },
+    { finnish: "Loma", english: "Vacation / Holiday", tip: "'Olen **lomalla**.' (I am on vacation) - adessive case.", level: "A2", id: 'work8' },
+    { finnish: "Sähköposti", english: "E-mail", tip: "Literally 'electricity-mail'.", level: "A2", id: 'work9' },
+    { finnish: "Tietokone", english: "Computer", tip: "Literally 'knowledge-machine'.", level: "A2", id: 'it1' },
+    { finnish: "Salasana", english: "Password", tip: "Literally 'secret-word'.", level: "A2", id: 'it7' },
+    { finnish: "Tiedosto", english: "File", tip: "'Tallenna tiedosto.' (Save the file).", level: "A2", id: 'it8' },
+    { finnish: "Koodata", english: "To code", tip: "Verb type 4. 'Minä koodaan.' (I code). Common IT verb.", level: "B1", id: 'it5' },
+    { finnish: "Kehittäjä", english: "Developer", tip: "Derived from the verb '**kehittää**' (to develop).", level: "B1", id: 'staff10' },
+    { finnish: "Ongelma", english: "Problem", tip: "'Ratkaista **ongelma**' (To solve a problem). The root for 'solution' is 'ratkaisu'.", level: "B1", id: 'abs1' },
+    { finnish: "Vastuu", english: "Responsibility", tip: "'Ottaa **vastuu**' (To take responsibility).", level: "B1", id: 'abs8' },
+    { finnish: "Päällikkö", english: "Manager / Chief", tip: "A senior position. Used in compounds like 'projektipäällikkö'.", level: "B1", id: 'staff12' },
+    { finnish: "Etätyö", english: "Remote work", tip: "Literally 'distance work'. 'Teen **etätyötä**.' (I do remote work) - partitive.", level: "B1", id: 'tech14' },
+    { finnish: "Tulos", english: "Result / Outcome", tip: "Plural: 'tulokset'. Used often in business and sports.", level: "B1", id: 'abs3' },
+    { finnish: "Päätös", english: "Decision", tip: "From the verb '**päättää**' (to decide). 'Tehdä päätös' (To make a decision).", level: "B1", id: 'abs4' },
+    { finnish: "Kokemus", english: "Experience", tip: "'Minulla on **kokemusta**' (I have experience) - partitive case for the object.", level: "B1", id: 'abs5' },
+    { finnish: "Taito", english: "Skill", tip: "Often used in plural: 'Hyvät **taidot**' (Good skills).", level: "B1", id: 'abs6' },
+    { finnish: "Tavoite", english: "Goal / Objective", tip: "'Saavuttaa **tavoite**' (To achieve a goal).", level: "B1", id: 'abs7' },
+    { finnish: "Asia", english: "Thing / Matter / Issue", tip: "A versatile word. 'Tämä on tärkeä asia' (This is an important matter).", level: "B1", id: 'abs11' },
+
+    // --- BLOCK B1.2: Intermediate Adjectives & Adverbs (B1 Core) (From Previous List) ---
+    { finnish: "Kaunis", english: "Beautiful", tip: "Often used to describe nature or scenery: 'Kaunis sää' (Beautiful weather).", level: "A2", id: 'adj7' },
+    { finnish: "Tärkeä", english: "Important", tip: "Partitive: '**tärkeää**'. 'Se on tärkeää.' (It is important).", level: "A2", id: 'adj16' },
+    { finnish: "Ilmainen", english: "Free (no cost)", tip: "Note the **'-inen' ending**, which changes to '-isen' in genitive (e.g., 'ilmaisen').", level: "B1", id: 'adj15' },
+    { finnish: "Väsynyt", english: "Tired", tip: "The adjective 'väsynyt' is a past participle: 'Olen väsynyt.' (I am tired).", level: "A2", id: 'soc8' },
+    { finnish: "Välttämätön", english: "Necessary / Essential", tip: "From 'välttää' (to avoid). Means 'unavoidable', thus necessary. Partitive: '**välttämätöntä**'.", level: "B1", id: 'phr4' },
+    { finnish: "Merkittävä", english: "Significant / Notable", tip: "From '**merkitä**' (to mark/mean). Partitive: '**merkittävää**'.", level: "B1", id: 'phr14' },
+    { finnish: "Ehkä", english: "Maybe / Perhaps", tip: "Used frequently. 'Ehkä **huomenna**.' (Maybe tomorrow).", level: "A2", id: 'new_adv1' },
+    { finnish: "Usein", english: "Often", tip: "Opposite of 'harvoin' (rarely).", level: "A2", id: 'new_adv2' },
+    { finnish: "Heti", english: "Immediately / Right now", tip: "'Tule **heti**!' (Come immediately!).", level: "A2", id: 'new_adv3' },
+    { finnish: "Sitten", english: "Then / After that", tip: "Used for sequencing actions: 'Syön, ja sitten menen.' (I eat, and then I go).", level: "A2", id: 'new_adv4' },
+    { finnish: "Todella", english: "Really / Truly", tip: "From the word 'tosi' (true). 'Se on **todella hyvä**.' (It is truly good).", level: "B1", id: 'new_adv5' },
+    { finnish: "Varmasti", english: "Certainly / Surely", tip: "From 'varma' (sure). 'Olen **varma**, että...' (I am sure, that...).", level: "B1", id: 'adv47' },
+    { finnish: "Joten", english: "So / Therefore", tip: "Used to introduce a consequence.", level: "B1", id: 'new_adv6' },
+    { finnish: "Tai", english: "Or", tip: "The conjunction for 'or'. 'Kahvia **tai** teetä.' (Coffee or tea) - both partitive.", level: "A1", id: 'new_conj1' },
+    { finnish: "Mutta", english: "But", tip: "The conjunction for 'but'.", level: "A1", id: 'new_conj2' },
+    { finnish: "Koska", english: "Because", tip: "Subordinating conjunction. 'Lähden, koska olen väsynyt.'", level: "A2", id: 'new_conj3' },
+
+    // --- BLOCK A2.5: New A2 Intermediate Adverbs & Particles ---
+    { finnish: "Liian", english: "Too (excessively)", tip: "Always followed by an adjective: 'Se on **liian kallis**.' (It is too expensive).", level: "A2", id: 'A2_adv_1' },
+    { finnish: "Melkein", english: "Almost", tip: "'Olen **melkein** valmis.' (I am almost ready).", level: "A2", id: 'A2_adv_2' },
+    { finnish: "Jo", english: "Already", tip: "'Hän on **jo** kotona.' (He/she is already home).", level: "A2", id: 'A2_adv_3' },
+    { finnish: "Vielä", english: "Still / Yet", tip: "Often used with the negative: 'En ole **vielä** valmis.' (I'm not yet ready).", level: "A2", id: 'A2_adv_4' },
+    { finnish: "Tässä", english: "Here (inessive, very close)", tip: "'Kirja on **tässä**.' (The book is here).", level: "A2", id: 'A2_adv_5' },
+    { finnish: "Tuossa", english: "There (inessive, close)", tip: "'Tuoli on **tuossa**.' (The chair is there).", level: "A2", id: 'A2_adv_6' },
+    { finnish: "Siinä", english: "There (inessive, general)", tip: "'Se on **siinä**.' (It is there).", level: "A2", id: 'A2_adv_7' },
+    { finnish: "Miten", english: "How?", tip: "Used to ask about method or manner. 'Miten teet sen?'", level: "A2", id: 'A2_adv_8' },
+    { finnish: "Miksi", english: "Why?", tip: "Often answered with 'Koska' (because).", level: "A2", id: 'A2_adv_9' },
+    { finnish: "Milloin", english: "When?", tip: "Used to ask about time. 'Milloin tulet?'", level: "A2", id: 'A2_adv_10' },
+
+    // --- BLOCK B1.3: New B1 Intermediate Verbs (Type 3, 4, 5, 6) ---
+    { finnish: "Tarjota", english: "To offer / To serve", tip: "Verb type 4. 'Tarjoan **kahvia**.' (I offer/serve coffee) - partitive object.", level: "B1", id: 'B1_verb_1' },
+    { finnish: "Tavata", english: "To meet", tip: "Verb type 4. 'Tapaan **sinut** huomenna.' (I meet you tomorrow) - object is accusative (total).", level: "B1", id: 'B1_verb_2' },
+    { finnish: "Valita", english: "To choose", tip: "Verb type 4. 'Valitsen **värin**.' (I choose the color) - object is accusative (total).", level: "B1", id: 'B1_verb_3' },
+    { finnish: "Harjoitella", english: "To practice / To train", tip: "Verb type 3. Takes **partitive**: 'Harjoittelen **suomea**.' (I practice Finnish).", level: "B1", id: 'B1_verb_4' },
+    { finnish: "Kuulla", english: "To hear", tip: "Verb type 1. 'Kuulen **äänen**.' (I hear a sound).", level: "B1", id: 'B1_verb_5' },
+    { finnish: "Laskea", english: "To calculate / To count", tip: "Verb type 1. 'Lasken **hinnat**.' (I calculate the prices).", level: "B1", id: 'B1_verb_6' },
+    { finnish: "Kokea", english: "To experience", tip: "Verb type 2. 'Koe **uusi kulttuuri**.' (Experience a new culture) - object is accusative (total).", level: "B1", id: 'B1_verb_7' },
+    { finnish: "Selittää", english: "To explain", tip: "Verb type 1. 'Selitän **asian**.' (I explain the matter).", level: "B1", id: 'B1_verb_8' },
+    { finnish: "Yrittää", english: "To try / To attempt", tip: "Verb type 1. 'Yritän **uudelleen**.' (I try again).", level: "B1", id: 'B1_verb_9' },
+    { finnish: "Suositella", english: "To recommend", tip: "Verb type 3. 'Suosittelen **tätä kirjaa**.' (I recommend this book) - partitive object.", level: "B1", id: 'B1_verb_10' },
+    { finnish: "Tarkistaa", english: "To check / To inspect", tip: "Verb type 1. 'Tarkistan **sähköpostin**.' (I check the email).", level: "B1", id: 'B1_verb_11' },
+    { finnish: "Tutkia", english: "To research / To study", tip: "Verb type 1. 'Tutkin **asiaa**.' (I research the matter) - partitive object.", level: "B1", id: 'B1_verb_12' },
+    { finnish: "Järjestää", english: "To organize / To arrange", tip: "Verb type 1. 'Järjestän **tapaamisen**.' (I arrange the appointment).", level: "B1", id: 'B1_verb_13' },
+    { finnish: "Käyttää", english: "To use", tip: "Verb type 2. 'Käytän **tietokonetta**.' (I use the computer) - partitive object.", level: "B1", id: 'B1_verb_14' },
+    { finnish: "Muuttaa", english: "To move (house) / To change", tip: "Verb type 1. 'Muutan **uuteen taloon**.' (I move to a new house).", level: "B1", id: 'B1_verb_15' },
+    { finnish: "Asentaa", english: "To install", tip: "Verb type 1. 'Asennan **ohjelman**.' (I install the program).", level: "B1", id: 'B1_verb_16' },
+    { finnish: "Poistaa", english: "To delete / To remove", tip: "Verb type 1. 'Poistan **tiedoston**.' (I delete the file).", level: "B1", id: 'B1_verb_17' },
+    { finnish: "Ladata", english: "To load / To charge", tip: "Verb type 4. 'Lataan **puhelimen**.' (I charge the phone).", level: "B1", id: 'B1_verb_18' },
+    { finnish: "Tallentaa", english: "To save (a file)", tip: "Verb type 1. 'Tallennan **projektin**.' (I save the project).", level: "B1", id: 'B1_verb_19' },
+    { finnish: "Korjata", english: "To fix / To repair", tip: "Verb type 4. 'Korjaan **virheen**.' (I fix the error).", level: "B1", id: 'B1_verb_20' },
+
+    // --- BLOCK A2.6: New A2 Nouns (Essentials) ---
+    { finnish: "Vaimo", english: "Wife", tip: "Genitive: '**Vaimon**'.", level: "A1", id: 'A2_noun_1' },
+    { finnish: "Mies", english: "Man / Husband", tip: "Genitive: '**Miehen**'. Partitive: '**Miestä**'.", level: "A1", id: 'A2_noun_2' },
+    { finnish: "Puhelin", english: "Phone", tip: "Inessive: '**Puhelimessa**'.", level: "A1", id: 'A2_noun_3' },
+    { finnish: "Avain", english: "Key", tip: "Plural: '**Avaimet**'.", level: "A1", id: 'A2_noun_4' },
+    { finnish: "Kello", english: "Clock / Watch / Time", tip: "'Paljonko **kello** on?' (What time is it?).", level: "A1", id: 'A2_noun_5' },
+    { finnish: "Pankki", english: "Bank", tip: "Inessive: '**Pankissa**'.", level: "A2", id: 'A2_noun_6' },
+    { finnish: "Posti", english: "Post office / Mail", tip: "Elative: '**Postista**' (from the post office).", level: "A2", id: 'A2_noun_7' },
+    { finnish: "Museo", english: "Museum", tip: "Illative: '**Museoon**' (to the museum).", level: "A2", id: 'A2_noun_8' },
+    { finnish: "Kirja", english: "Book", tip: "Partitive: '**Kirjaa**'.", level: "A2", id: 'A2_noun_9' },
+    { finnish: "Sanomalehti", english: "Newspaper", tip: "Literally 'word-story-leaf'.", level: "A2", id: 'A2_noun_10' },
+    { finnish: "Tyttöystävä", english: "Girlfriend", tip: "Compound noun.", level: "A2", id: 'A2_noun_11' },
+    { finnish: "Poikaystävä", english: "Boyfriend", tip: "Compound noun.", level: "A2", id: 'A2_noun_12' },
+    { finnish: "Ystävä", english: "Friend", tip: "Plural is 'ystävät'. With the genitive/possessive: '**Ystävän** kanssa' (With a friend).", level: "A1", id: 'soc11' },
+    { finnish: "Lasku", english: "Bill / Invoice", tip: "'Maksan **laskun**.' (I pay the bill).", level: "A2", id: 'A2_noun_13' },
+    { finnish: "Kuitti", english: "Receipt", tip: "'Haluatko **kuitin**?' (Do you want the receipt?).", level: "A2", id: 'A2_noun_14' },
+    { finnish: "Hinta", english: "Price", tip: "'Mikä on tämän **hinta**?' (What is the price of this?).", level: "A2", id: 'A2_noun_15' },
+
+    // --- BLOCK B1.4: New B1 Nouns (Health, Society, Work) ---
+    { finnish: "Terveys", english: "Health", tip: "Partitive: '**terveyttä**'. 'Hyvä terveys.' (Good health).", level: "B1", id: 'B1_noun_1' },
+    { finnish: "Sairas", english: "Sick / Ill", tip: "'Olen **sairas**.' (I am sick) - used as an adjective.", level: "B1", id: 'B1_noun_2' },
+    { finnish: "Päänsärky", english: "Headache", tip: "Literally 'head pain'. 'Minulla on **päänsärky**.' (I have a headache).", level: "B1", id: 'B1_noun_3' },
+    { finnish: "Flunssa", english: "Flu / Cold", tip: "A very common word for a cold.", level: "B1", id: 'B1_noun_4' },
+    { finnish: "Lääkäri", english: "Doctor", tip: "Movement to a person/place uses the **illative case (-in)**: 'Minun täytyy mennä **lääkäriin**'.", level: "A2", id: 'B1_noun_5' },
+    { finnish: "Apteekki", english: "Pharmacy", tip: "Illative: 'Menen **apteekkiin**.' (I go to the pharmacy).", level: "B1", id: 'B1_noun_6' },
+    { finnish: "Oikeus", english: "Right / Justice / Court", tip: "Very versatile. 'Minulla on **oikeus**.' (I have a right).", level: "B1", id: 'B1_noun_7' },
+    { finnish: "Laki", english: "Law / Act", tip: "Plural: '**Lait**'. 'Noudattaa **lakia**.' (To obey the law) - partitive object.", level: "B1", id: 'B1_noun_8' },
+    { finnish: "Hallitus", english: "Government", tip: "From the verb 'hallita' (to govern).", level: "B1", id: 'B1_noun_9' },
+    { finnish: "Kansalainen", english: "Citizen", tip: "Genitive: '**Kansalaisen**'.", level: "B1", id: 'B1_noun_10' },
+    { finnish: "Koulutus", english: "Education", tip: "From '**kouluttaa**' (to educate).", level: "B1", id: 'B1_noun_11' },
+    { finnish: "Liikenne", english: "Traffic / Transport", tip: "'Julkinen liikenne' (public transport).", level: "B1", id: 'B1_noun_12' },
+    { finnish: "Ympäristö", english: "Environment", tip: "Illative: 'Vaikutus **ympäristöön**.' (Impact on the environment).", level: "B1", id: 'B1_noun_13' },
+    { finnish: "Kehitys", english: "Development / Progress", tip: "From the verb 'kehittää' (to develop).", level: "B1", id: 'B1_noun_14' },
+    { finnish: "Muutos", english: "Change", tip: "'Tehdä **muutos**.' (To make a change).", level: "B1", id: 'B1_noun_15' },
+
+    // --- BLOCK A2.7: New A2 Basic Adjectives & Adverbs ---
+    { finnish: "Lämmin", english: "Warm", tip: "Opposite of 'kylmä' (cold). Note the double consonant in the stem.", level: "A1", id: 'A2_adj_1' },
+    { finnish: "Kylmä", english: "Cold", tip: "'Minulla on **kylmä**' (I am cold).", level: "A1", id: 'A2_adj_2' },
+    { finnish: "Nopea", english: "Fast", tip: "Comparative: '**nopeampi**' (faster).", level: "A2", id: 'A2_adj_3' },
+    { finnish: "Hidas", english: "Slow", tip: "Opposite of nopea. Partitive: '**hidasta**'.", level: "A2", id: 'A2_adj_4' },
+    { finnish: "Mukava", english: "Nice / Comfortable", tip: "Often used to describe people or a pleasant atmosphere.", level: "A2", id: 'A2_adj_5' },
+    { finnish: "Kiva", english: "Nice / Fun (casual)", tip: "Very common casual word. 'Kiva **päivä**!' (Nice day!).", level: "A2", id: 'A2_adj_6' },
+    { finnish: "Paljon", english: "Much / A lot", tip: "Used for uncountable nouns. 'Paljon **rahaa**.' (A lot of money).", level: "A1", id: 'A2_adj_7' },
+    { finnish: "Monta", english: "Many / Several", tip: "Takes the partitive plural: 'Monta **kirjaa**.' (Many books).", level: "A1", id: 'A2_adj_8' },
+    { finnish: "Muutama", english: "A few / Several", tip: "Takes the partitive plural: 'Muutama **päivä**.' (A few days).", level: "A2", id: 'A2_adj_9' },
+    { finnish: "Kaikki", english: "All / Everything", tip: "Always plural. 'Kaikki **tietävät**.' (Everyone knows).", level: "A2", id: 'A2_adj_10' },
+
+    // --- BLOCK B1.5: New B1 Intermediate Adjectives & Phrases ---
+    { finnish: "Julkinen", english: "Public", tip: "Opposite of 'yksityinen' (private). 'Julkinen **liikenne**.' (public transport).", level: "B1", id: 'B1_adj_1' },
+    { finnish: "Yksityinen", english: "Private", tip: "Opposite of 'julkinen'.", level: "B1", id: 'B1_adj_2' },
+    { finnish: "Tasa-arvo", english: "Equality", tip: "Literally 'equal value'. A core Finnish value.", level: "B1", id: 'B1_adj_3' },
+    { finnish: "Jokainen", english: "Each / Every (person)", tip: "Genitive: '**jokaisen**'. Partitive: '**jokaista**'.", level: "B1", id: 'B1_adj_4' },
+    { finnish: "Olen samaa mieltä", english: "I agree", tip: "Literally 'I am of the same mind'. The common phrase for agreeing.", level: "B1", id: 'phr16' },
+    { finnish: "Ilman", english: "Without", tip: "Postposition that takes the **partitive case**: '**Ilman rahaa**.' (Without money).", level: "B1", id: 'gadv7' },
+    { finnish: "Kanssa", english: "With", tip: "Postposition that takes the **genitive case**: '**Ystävän** kanssa.' (With a friend).", level: "B1", id: 'gadv8' },
+    { finnish: "Joten", english: "So / Therefore", tip: "Used to introduce a consequence.", level: "B1", id: 'B1_conj_1' },
+    { finnish: "Vaikka", english: "Although / Even if", tip: "Subordinating conjunction expressing concession.", level: "B1", id: 'adv36' },
+    { finnish: "Lisäksi", english: "In addition / Furthermore", tip: "Used to connect ideas. Can take the genitive case when used as a postposition: '**Sen** lisäksi... (In addition to that...)", level: "B1", id: 'abn17' },
+    { finnish: "Niin", english: "So / Indeed / That's right", tip: "A very versatile filler word and intensifier in conversation. 'Niin on!' (Indeed it is!).", level: "A2", id: 'B1_adv_1' },
+    { finnish: "Ainakin", english: "At least", tip: "'Olen **ainakin** yrittänyt.' (At least I have tried).", level: "B1", id: 'B1_adv_2' },
+    { finnish: "Tavallisesti", english: "Usually / Normally", tip: "From the word 'tavallinen' (ordinary).", level: "B1", id: 'B1_adv_3' },
+    { finnish: "Yleensä", english: "Generally", tip: "Synonym for 'tavallisesti'.", level: "B1", id: 'B1_adv_4' },
+    { finnish: "Ehdottomasti", english: "Absolutely / Definitely", tip: "From 'ehdoton' (absolute).", level: "B1", id: 'B1_adv_5' },
+
+    // --- BLOCK B1.6: New B1 Adjectives and Abstract Nouns (Expansion) ---
+    { finnish: "Vapaa", english: "Free (availability)", tip: "Opposite of 'varattu' (busy/reserved).", level: "B1", id: 'B1_exp_1' },
+    { finnish: "Varattu", english: "Reserved / Busy (taken)", tip: "'Pöytä on **varattu**.' (The table is reserved).", level: "B1", id: 'B1_exp_2' },
+    { finnish: "Vaativa", english: "Demanding / Challenging", tip: "From the verb 'vaatia' (to demand). 'Vaativa **työ**.' (A demanding job).", level: "B1", id: 'B1_exp_3' },
+    { finnish: "Luotettava", english: "Reliable / Trustworthy", tip: "From the verb 'luottaa' (to trust).", level: "B1", id: 'B1_exp_4' },
+    { finnish: "Rehellinen", english: "Honest", tip: "Opposite of 'epärehellinen' (dishonest).", level: "B1", id: 'B1_exp_5' },
+    { finnish: "Vapaus", english: "Freedom / Liberty", tip: "The base word for 'free' (no cost) is 'ilmainen'.", level: "B1", id: 'B1_exp_6' },
+    { finnish: "Tuki", english: "Support", tip: "'Tarvitsen **tukea**.' (I need support) - partitive case.", level: "B1", id: 'B1_exp_7' },
+    { finnish: "Mielipide", english: "Opinion", tip: "'Minun **mielipiteeni**.' (My opinion).", level: "B1", id: 'B1_exp_8' },
+    { finnish: "Vaatimus", english: "Requirement / Demand", tip: "'Vaatimukset ovat **korkeat**.' (The requirements are high).", level: "B1", id: 'B1_exp_9' },
+    { finnish: "Sopimus", english: "Agreement / Contract", tip: "'Tehdä **sopimus**.' (To make a contract).", level: "B1", id: 'B1_exp_10' },
+
+    // --- BLOCK A1.5: New A1 Numbers (13-19) ---
+    { finnish: "Kolmetoista", english: "Thirteen", tip: "Partitive noun required: 'Kolmetoista **vuotta**'.", level: "A1", id: 'A1_num_13' },
+    { finnish: "Neljätoista", english: "Fourteen", tip: "Partitive noun required.", level: "A1", id: 'A1_num_14' },
+    { finnish: "Viisitoista", english: "Fifteen", tip: "Partitive noun required.", level: "A1", id: 'A1_num_15' },
+    { finnish: "Kuusitoista", english: "Sixteen", tip: "Partitive noun required.", level: "A1", id: 'A1_num_16' },
+    { finnish: "Seitsemäntoista", english: "Seventeen", tip: "Partitive noun required.", level: "A1", id: 'A1_num_17' },
+    { finnish: "Kahdeksantoista", english: "Eighteen", tip: "Partitive noun required.", level: "A1", id: 'A1_num_18' },
+    { finnish: "Yhdeksäntoista", english: "Nineteen", tip: "Partitive noun required.", level: "A1", id: 'A1_num_19' },
+
+    // --- BLOCK A2.8: New A2 Basic Time Adverbs and Days ---
+    { finnish: "Tiistai", english: "Tuesday", tip: "Essive case: '**Tiistaina**'.", level: "A1", id: 'A2_time_1' },
+    { finnish: "Torstai", english: "Thursday", tip: "Essive case: '**Torstaina**'.", level: "A1", id: 'A2_time_2' },
+    { finnish: "Lauantai", english: "Saturday", tip: "Essive case: '**Lauantaina**'.", level: "A1", id: 'A2_time_3' },
+    { finnish: "Sunnuntai", english: "Sunday", tip: "Essive case: '**Sunnuntaina**'.", level: "A1", id: 'A2_time_4' },
+    { finnish: "Aamulla", english: "In the morning", tip: "Adverbial expression using the adessive case (-lla).", level: "A1", id: 'A2_time_5' },
+    { finnish: "Päivällä", english: "During the day / At noon", tip: "Adverbial expression.", level: "A1", id: 'A2_time_6' },
+    { finnish: "Illalla", english: "In the evening", tip: "Adverbial expression.", level: "A1", id: 'A2_time_7' },
+    { finnish: "Yöllä", english: "At night", tip: "Adverbial expression. 'Hyvää **yötä**!' (Good night!)", level: "A1", id: 'A2_time_8' },
+    { finnish: "Viikonloppuna", english: "On the weekend", tip: "Essive case: '**Viikonloppuna**'.", level: "A1", id: 'A2_time_9' },
+
+    // --- BLOCK B1.7: New B1 Intermediate Time Nouns and Scheduling ---
+    { finnish: "Aikataulu", english: "Schedule / Timetable", tip: "Literally 'time list'.", level: "B1", id: 'B1_time_1' },
+    { finnish: "Varhainen", english: "Early", tip: "Opposite of 'myöhäinen' (late). 'Varhain **aamulla**.' (Early in the morning).", level: "B1", id: 'B1_time_2' },
+    { finnish: "Myöhäinen", english: "Late", tip: "Opposite of 'varhainen'. 'Olen **myöhässä**.' (I am late).", level: "B1", id: 'B1_time_3' },
+    { finnish: "Alku", english: "Beginning / Start", tip: "'**Alussa**' (In the beginning) - inessive case.", level: "B1", id: 'B1_time_4' },
+    { finnish: "Loppu", english: "End / Finish", tip: "'**Lopussa**' (At the end) - inessive case.", level: "B1", id: 'B1_time_5' },
+    { finnish: "Kesto", english: "Duration", tip: "From the verb 'kestää' (to last).", level: "B1", id: 'B1_time_6' },
+    { finnish: "Tapaaminen", english: "Appointment / Meeting", tip: "From the verb 'tavata' (to meet).", level: "B1", id: 'B1_time_7' },
+    { finnish: "Peruuttaa", english: "To cancel", tip: "Verb type 1. 'Minä **peruutin** tapaamisen.' (I cancelled the appointment).", level: "B1", id: 'B1_time_8' },
+    { finnish: "Siirtää", english: "To move / To postpone", tip: "Verb type 1. 'Siirrän **kokouksen**.' (I postpone the meeting).", level: "B1", id: 'B1_time_9' },
+
+    // --- BLOCK A2.9: New A2 Transport & Directions ---
+    { finnish: "Juna", english: "Train", tip: "Means of transport use the **adessive case (-lla)**: 'Menet **junalla**.' (You go by train).", level: "A1", id: 'A2_trans_1' },
+    { finnish: "Bussi", english: "Bus", tip: "'**Bussilla**' (By bus) - adessive case.", level: "A1", id: 'A2_trans_2' },
+    { finnish: "Auto", english: "Car", tip: "'**Autolla**' (By car) - adessive case.", level: "A1", id: 'A2_trans_3' },
+    { finnish: "Lippu", english: "Ticket", tip: "'Ostan **lipun**.' (I buy a ticket).", level: "A1", id: 'A2_trans_4' },
+    { finnish: "Osoite", english: "Address", tip: "'Mikä on sinun **osoitteesi**?' (What is your address?).", level: "A1", id: 'A2_trans_5' },
+    { finnish: "Keskusta", english: "City center", tip: "'**Keskustassa**' (In the city center) - inessive case.", level: "A1", id: 'A2_trans_6' },
+    { finnish: "Tie", english: "Road / Way", tip: "'Olen **tiellä**.' (I am on the road) - adessive case.", level: "A2", id: 'A2_trans_7' },
+    { finnish: "Katu", english: "Street", tip: "'**Kadulla**' (On the street) - adessive case.", level: "A2", id: 'A2_trans_8' },
+    { finnish: "Kartta", english: "Map", tip: "'Tarvitsen **kartan**.' (I need a map).", level: "A2", id: 'A2_trans_9' },
+    { finnish: "Lähellä", english: "Near", tip: "Postposition that takes the **genitive case**: '**Kaupungin** lähellä' (Near the city).", level: "A2", id: 'A2_trans_10' },
+    { finnish: "Kaukana", english: "Far", tip: "Used with the **elative case (-sta)**: '**Kotoa** kaukana' (Far from home).", level: "A2", id: 'A2_trans_11' },
+
+    // --- BLOCK B1.8: New B1 Adverbs and Connectors ---
+    { finnish: "Sen sijaan", english: "Instead (of that)", tip: "Used to introduce an alternative. 'Sen sijaan teen tämän.' (Instead, I will do this).", level: "B1", id: 'B1_adv_6' },
+    { finnish: "Kuitenkin", english: "However / Nevertheless", tip: "Used for contrast, similar to 'mutta' (but).", level: "B1", id: 'B1_adv_7' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_adv_8' },
+    { finnish: "Toki", english: "Of course / Certainly", tip: "A polite, affirmative particle.", level: "B1", id: 'B1_adv_9' },
+    { finnish: "Nimittäin", english: "Namely / That is to say", tip: "Used to specify or elaborate on a preceding statement.", level: "B1", id: 'B1_adv_10' },
+    { finnish: "Tietysti", english: "Of course / Naturally", tip: "From 'tietää' (to know). 'Tietysti se on **totta**.' (Of course it is true).", level: "B1", id: 'B1_adv_11' },
+    { finnish: "Todennäköisesti", english: "Probably / Likely", tip: "From 'todennäköinen' (probable). 'Todennäköisesti **sataa**.' (It will probably rain).", level: "B1", id: 'B1_adv_12' },
+    { finnish: "Vähintään", english: "At least (minimum)", tip: "Used for minimum quantity or degree.", level: "B1", id: 'B1_adv_13' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not). 'Hän ei tullut, **eikä** soittanut.'", level: "B1", id: 'B1_adv_14' },
+    { finnish: "Jotta", english: "In order that / So that", tip: "Subordinating conjunction used to express purpose. Takes the conditional mood.", level: "B1", id: 'B1_adv_15' },
+    { finnish: "Kunhan", english: "Provided that / As long as", tip: "Subordinating conjunction expressing a condition.", level: "B1", id: 'B1_adv_16' },
+    { finnish: "Mitenkä", english: "How? (formal/old)", tip: "More formal version of 'miten'.", level: "B1", id: 'B1_adv_17' },
+
+    // --- BLOCK B1.9: New B1 Adjectives (Expansion) ---
+    { finnish: "Osaava", english: "Competent / Knowledgeable", tip: "From the verb 'osata' (to know how to do something).", level: "B1", id: 'B1_adj_5' },
+    { finnish: "Tyytyväinen", english: "Satisfied / Content", tip: "Takes **illative case (-an/-iin)**: 'Olen tyytyväinen **tulokseen**.'", level: "B1", id: 'B1_adj_6' },
+    { finnish: "Pettynyt", english: "Disappointed", tip: "Takes **illative case (-an/-iin)**: 'Olen pettynyt **häneen**.'", level: "B1", id: 'B1_adj_7' },
+    { finnish: "Perusteellinen", english: "Thorough / Fundamental", tip: "From 'peruste' (basis/foundation).", level: "B1", id: 'B1_adj_8' },
+    { finnish: "Kriittinen", english: "Critical", tip: "Same word, Finnish spelling.", level: "B1", id: 'B1_adj_9' },
+    { finnish: "Kohtuullinen", english: "Reasonable / Moderate", tip: "From 'kohtu' (moderation).", level: "B1", id: 'B1_adj_10' },
+    { finnish: "Jatkuva", english: "Continuous / Ongoing", tip: "From the verb 'jatkua' (to continue).", level: "B1", id: 'B1_adj_11' },
+    { finnish: "Säännöllinen", english: "Regular / Routine", tip: "From 'sääntö' (rule). 'Säännöllisesti' (regularly).", level: "B1", id: 'B1_adj_12' },
+    { finnish: "Yleinen", english: "General / Common", tip: "Used for public services or widespread things.", level: "B1", id: 'B1_adj_13' },
+    { finnish: "Tavallinen", english: "Ordinary / Normal", tip: "From 'tapa' (way/manner).", level: "A2", id: 'A2_adj_11' },
+
+    // --- BLOCK B1.10: New B1 Abstract Nouns (Expansion) ---
+    { finnish: "Ratkaisu", english: "Solution", tip: "From the verb 'ratkaista' (to solve).", level: "B1", id: 'B1_abs_1' },
+    { finnish: "Tieto", english: "Knowledge / Data", tip: "Partitive: '**tietoa**'.", level: "B1", id: 'B1_abs_2' },
+    { finnish: "Ajatus", english: "Thought / Idea", tip: "Plural: '**ajatukset**'.", level: "B1", id: 'B1_abs_3' },
+    { finnish: "Vaikutus", english: "Effect / Impact", tip: "Requires the **illative**: 'Vaikutus **ympäristöön**.'", level: "B1", id: 'B1_abs_4' },
+    { finnish: "Toteutus", english: "Implementation / Execution", tip: "From 'toteuttaa' (to implement). 'Projektin **toteutus**.'", level: "B1", id: 'B1_abs_5' },
+    { finnish: "Lähdekoodi", english: "Source code", tip: "Literally 'source code'.", level: "B1", id: 'B1_abs_6' },
+    { finnish: "Virhe", english: "Error / Bug", tip: "Synonyms are 'bugi' (casual loan word) or 'häiriö'.", level: "B1", id: 'B1_abs_7' },
+    { finnish: "Testaus", english: "Testing", tip: "The process of testing.", level: "B1", id: 'B1_abs_8' },
+    { finnish: "Käyttäjä", english: "User", tip: "From the verb 'käyttää' (to use).", level: "B1", id: 'B1_abs_9' },
+    { finnish: "Palvelin", english: "Server", tip: "From the verb 'palvella' (to serve).", level: "B1", id: 'B1_abs_10' },
+
+    // --- BLOCK A2.10: New A2/B1 Conversational Essentials ---
+    { finnish: "Anteeksi", english: "Excuse me / Sorry", tip: "Use for asking forgiveness, getting attention, or passing by.", level: "A1", id: 'conv1' },
+    { finnish: "Näkemiin", english: "Goodbye (formal)", tip: "The literal meaning is 'until seeing' (plural).", level: "A1", id: 'conv2' },
+    { finnish: "Mitä se on?", english: "What is that?", tip: "Essential question structure. 'Se' is the object/subject.", level: "A1", id: 'conv4' },
+    { finnish: "Paljonko kello on?", english: "What time is it?", tip: "Literally 'How much is the clock?'", level: "A1", id: 'conv5' },
+    { finnish: "Missä olet?", english: "Where are you? (singular)", tip: "Asks for location, answered with inessive (-ssa / -llä).", level: "A1", id: 'conv6' },
+    { finnish: "Mihin menet?", english: "Where are you going (to)?", tip: "Asks for destination, answered with illative (-an / -iin / -lle).", level: "A1", id: 'conv8' },
+    { finnish: "Minulla on nälkä", english: "I am hungry", tip: "Possessive structure: 'On minulla' (There is hunger at me). Used for feelings and possessions.", level: "A1", id: 'conv14' },
+    { finnish: "Minulla on jano", english: "I am thirsty", tip: "'Minulla on' is used for many states and possessions.", level: "A1", id: 'conv15' },
+    { finnish: "Eipä kestä", english: "No problem / You're welcome (casual)", tip: "Common reply to 'Kiitos'. Literally 'It does not last (it's not a burden)'.", level: "A2", id: 'conv16' },
+    { finnish: "No niin", english: "Well then / Alright / Come on", tip: "An extremely common multi-purpose Finnish filler/interjection.", level: "A2", id: 'conv19' },
+    { finnish: "Älä huoli", english: "Don't worry", tip: "Imperative form: 'Älä' (don't) + 'huoli' (worry).", level: "A2", id: 'adv52' },
+    { finnish: "Kiire", english: "Rush / Hurry", tip: "'Minulla on **kiire**.' (I am in a hurry).", level: "A2", id: 'adv54' },
+    { finnish: "Tottakai", english: "Of course (casual)", tip: "A shortened, very common version of 'tietysti'.", level: "A2", id: 'adv58' },
+    { finnish: "Ei mitään", english: "It was nothing / Don't mention it", tip: "Common response to 'Kiitos'. Literally 'no anything'.", level: "A2", id: 'adv59' },
+    
+    // --- BLOCK A1.6: New A1 Simple Nouns ---
+    { finnish: "Mies", english: "Man / Husband", tip: "Genitive: 'Miehen'. Partitive: 'Miestä'.", level: "A1", id: 'A1_noun_1' },
+    { finnish: "Nainen", english: "Woman / Wife", tip: "Genitive: 'Naisen'. Partitive: 'Naista'.", level: "A1", id: 'A1_noun_2' },
+    { finnish: "Perhe", english: "Family", tip: "Inessive: 'Perheessä'.", level: "A1", id: 'A1_noun_3' },
+    { finnish: "Auto", english: "Car", tip: "Adessive: 'Autolla' (by car).", level: "A1", id: 'A1_noun_4' },
+    { finnish: "Puhelin", english: "Phone", tip: "Inessive: 'Puhelimessa'.", level: "A1", id: 'A1_noun_5' },
+    { finnish: "Koti", english: "Home", tip: "Illative: 'Kotiin' (to home). Inessive: 'Kotona' (at home).", level: "A1", id: 'A1_noun_6' },
+    { finnish: "Tyttö", english: "Girl", tip: "Partitive: 'Tyttöä'.", level: "A1", id: 'A1_noun_7' },
+    { finnish: "Poika", english: "Boy", tip: "Partitive: 'Poikaa'.", level: "A1", id: 'A1_noun_8' },
+    { finnish: "Kirja", english: "Book", tip: "Partitive: 'Kirjaa'.", level: "A1", id: 'A1_noun_9' },
+    { finnish: "Katu", english: "Street", tip: "Adessive: 'Kadulla' (on the street).", level: "A1", id: 'A1_noun_10' },
+
+    // --- BLOCK A2.11: New A2 Motion Verbs and Location Cases ---
+    { finnish: "Panna", english: "To put", tip: "Verb type 1. Requires **illative** for destination: 'Panna kirja **pöydälle**.' (on the table).", level: "A2", id: 'A2_verb_1' },
+    { finnish: "Ottaa", english: "To take", tip: "Verb type 1. 'Otan **kahvin**.' (I take the coffee).", level: "A2", id: 'A2_verb_2' },
+    { finnish: "Nukkua", english: "To sleep", tip: "Verb type 1. 'Nukun **pitkään**.' (I sleep long).", level: "A2", id: 'A2_verb_3' },
+    { finnish: "Herätä", english: "To wake up", tip: "Verb type 4. 'Herään **aikaisin**.' (I wake up early).", level: "A2", id: 'A2_verb_4' },
+    { finnish: "Uida", english: "To swim", tip: "Verb type 2. Takes **inessive** for location: 'Uin **järvessä**.' (in the lake).", level: "A2", id: 'A2_verb_5' },
+    { finnish: "Matkustaa", english: "To travel", tip: "Verb type 1. 'Tykkään **matkustaa**.' (I like to travel).", level: "A2", id: 'A2_verb_6' },
+    { finnish: "Lentää", english: "To fly", tip: "Verb type 1. 'Hän **lentää** kotiin.'", level: "A2", id: 'A2_verb_7' },
+    { finnish: "Mennä nukkumaan", english: "To go to sleep", tip: "Fixed phrase. 'Menen **nukkumaan**.'", level: "A2", id: 'A2_verb_8' },
+    { finnish: "Aloittaa", english: "To start / To begin", tip: "Verb type 1. 'Aloitan **työn**.' (I start the work) - object is accusative (total).", level: "A2", id: 'A2_verb_9' },
+    { finnish: "Lopettaa", english: "To stop / To finish", tip: "Verb type 1. Takes object in partitive: 'Lopetan **juomisen**.'", level: "A2", id: 'A2_verb_10' },
+
+    // --- BLOCK B1.11: New B1 Adverbs and Prepositions ---
+    { finnish: "Ennen", english: "Before", tip: "Postposition that takes **genitive**: '**Koulun** ennen' (Before school).", level: "B1", id: 'B1_prep_1' },
+    { finnish: "Jälkeen", english: "After", tip: "Postposition that takes **genitive**: '**Työn** jälkeen' (After work).", level: "B1", id: 'B1_prep_2' },
+    { finnish: "Syy", english: "Reason / Cause", tip: "'Mikä on **syy**?' (What is the reason?).", level: "B1", id: 'B1_prep_3' },
+    { finnish: "Tarkoitus", english: "Purpose / Intention", tip: "'Mikä on **tarkoitus**?' (What is the purpose?).", level: "B1", id: 'B1_prep_4' },
+    { finnish: "Samanlainen", english: "Similar / The same kind", tip: "Takes the **allative** case for comparison: 'Samanlainen **kuin hänelle**.'", level: "B1", id: 'B1_prep_5' },
+    { finnish: "Erilainen", english: "Different", tip: "Takes the **elative** case for comparison: 'Erilainen **kuin minusta**.'", level: "B1", id: 'B1_prep_6' },
+    { finnish: "Valitettavasti", english: "Unfortunately", tip: "Adverb expressing regret.", level: "B1", id: 'B1_prep_7' },
+    { finnish: "Onneksi", english: "Fortunately", tip: "Adverb expressing relief.", level: "B1", id: 'B1_prep_8' },
+
+    // --- BLOCK A2.12: New A2 Food & Drink ---
+    { finnish: "Juusto", english: "Cheese", tip: "Partitive: '**juustoa**'.", level: "A1", id: 'A2_food_1' },
+    { finnish: "Voi", english: "Butter", tip: "Partitive: '**voita**'. Also means 'can' (verb).", level: "A1", id: 'A2_food_2' },
+    { finnish: "Sokeri", english: "Sugar", tip: "Partitive: '**sokeria**'.", level: "A1", id: 'A2_food_3' },
+    { finnish: "Suola", english: "Salt", tip: "Partitive: '**suolaa**'.", level: "A1", id: 'A2_food_4' },
+    { finnish: "Hedelmä", english: "Fruit", tip: "Partitive: '**hedelmää**'.", level: "A1", id: 'A2_food_5' },
+    { finnish: "Vihannes", english: "Vegetable", tip: "Partitive: '**vihannesta**'.", level: "A1", id: 'A2_food_6' },
+    { finnish: "Ateria", english: "Meal", tip: "'Hyvää **ateriaa**!' (Have a good meal!) - partitive.", level: "A2", id: 'A2_food_7' },
+    { finnish: "Välipala", english: "Snack", tip: "Literally 'between meal'.", level: "A2", id: 'A2_food_8' },
+    { finnish: "Jälkiruoka", english: "Dessert", tip: "Literally 'after food'.", level: "A2", id: 'A2_food_9' },
+    { finnish: "Jäätelö", english: "Ice cream", tip: "Partitive: '**jäätelöä**'.", level: "A2", id: 'A2_food_10' },
+
+    // --- BLOCK B1.12: New B1 Intermediate Verbs (Contextual) ---
+    { finnish: "Pysyä", english: "To stay / To remain", tip: "Verb type 1. Takes **inessive** for location: 'Pysyn **kotona**.' (I stay at home).", level: "B1", id: 'B1_verb_21' },
+    { finnish: "Kestää", english: "To last / To endure / To take (time)", tip: "Verb type 1. 'Kokous **kestää tunnin**.' (The meeting lasts an hour).", level: "B1", id: 'B1_verb_22' },
+    { finnish: "Tapahtua", english: "To happen / To occur", tip: "Verb type 1. Often used impersonally: 'Mitä **tapahtui**?' (What happened?).", level: "B1", id: 'B1_verb_23' },
+    { finnish: "Löytää", english: "To find", tip: "Verb type 1. 'Löysin **lompakon**.' (I found the wallet).", level: "B1", id: 'B1_verb_24' },
+    { finnish: "Keksiä", english: "To invent / To figure out", tip: "Verb type 1. 'Keksin **ratkaisun**.' (I figured out the solution).", level: "B1", id: 'B1_verb_25' },
+    { finnish: "Tuntea (A2)", english: "To know (a person/place)", tip: "Verb type 1. 'Tunnemme **hänet**.' (We know him/her) - object is in the accusative (total).", level: "A2", id: 'verb20_A2' },
+    { finnish: "Tuntea (B1)", english: "To feel (emotionally)", tip: "Verb type 1. 'Minä tunnen itseni **iloiseksi**.' (I feel happy) - essive case used for the state.", level: "B1", id: 'verb20_B1' },
+
+    // --- BLOCK A2.13: New A2 Common Verbs ---
+    { finnish: "Katsoa", english: "To look / To watch", tip: "Verb type 1. 'Minä katson **televisiota**.' (I watch TV) - partitive object.", level: "A1", id: 'A2_verb_11' },
+    { finnish: "Heittää", english: "To throw", tip: "Verb type 1. 'Heitän **pallon**.' (I throw the ball).", level: "A2", id: 'A2_verb_12' },
+    { finnish: "Löytää", english: "To find", tip: "Verb type 1. 'Löysin **avaimet**.' (I found the keys).", level: "A2", id: 'A2_verb_13' },
+    { finnish: "Pestä", english: "To wash", tip: "Verb type 3. 'Pesen **vaatteet**.' (I wash the clothes).", level: "A2", id: 'A2_verb_14' },
+    { finnish: "Siivota", english: "To clean", tip: "Verb type 4. 'Minä **siivoan**.' (I clean).", level: "A2", id: 'A2_verb_15' },
+    { finnish: "Auttaa", english: "To help", tip: "Verb type 1. Requires the **partitive case**: 'Autan **sinua**.' (I help you).", level: "A2", id: 'A2_verb_16' },
+    { finnish: "Kertoa", english: "To tell", tip: "Verb type 1. Takes **allative** for the person: 'Kerron **sinulle** tarinan.'", level: "A2", id: 'A2_verb_17' },
+    { finnish: "Nähdä", english: "To see", tip: "Verb type 2. 'Minä näen' (I see). Consonant gradation: 'Hän **näkee**'.", level: "A1", id: 'A2_verb_18' },
+    { finnish: "Kuunnella", english: "To listen", tip: "Verb type 3. Takes **partitive**: 'Kuuntelen **musiikkia**.'", level: "A2", id: 'A2_verb_19' },
+    { finnish: "Olla töissä", english: "To be at work", tip: "Fixed locative phrase.", level: "A1", id: 'A2_verb_20' },
+
+    // --- BLOCK B1.13: New B1 Adverbs and Connectors (Full Expansion) ---
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_adv_18' },
+    { finnish: "Kuitenkin", english: "However / Nevertheless", tip: "Used for contrast, similar to 'mutta' (but).", level: "B1", id: 'B1_adv_19' },
+    { finnish: "Ennen kaikkea", english: "Above all / Primarily", tip: "A common phrase to emphasize the main point. Literally 'before everything'.", level: "B1", id: 'B1_adv_20' },
+    { finnish: "Yleisesti ottaen", english: "Generally speaking", tip: "A common formal phrase for generalizing.", level: "B1", id: 'B1_adv_21' },
+    { finnish: "Toisaalta", english: "On the other hand", tip: "Used to introduce a contrasting argument.", level: "B1", id: 'B1_adv_22' },
+    { finnish: "Samaan aikaan", english: "At the same time", tip: "Used to describe simultaneous events.", level: "B1", id: 'B1_adv_23' },
+    { finnish: "Pian", english: "Soon", tip: "'Nähdään **pian**.' (See you soon).", level: "A2", id: 'B1_adv_24' },
+    { finnish: "Äsken", english: "Just now / A moment ago", tip: "Used for the very recent past. 'Hän lähti **äsken**.'", level: "B1", id: 'B1_adv_25' },
+    { finnish: "Kerran", english: "Once / One time", tip: "Used for frequency: '**Kerran** viikossa.' (Once a week).", level: "A2", id: 'B1_adv_26' },
+    { finnish: "Tavallisesti", english: "Usually / Normally", tip: "From the word 'tavallinen' (ordinary).", level: "B1", id: 'B1_adv_27' },
+
+    // --- BLOCK A2.14: New A2 Basic Adjectives ---
+    { finnish: "Puhdas", english: "Clean", tip: "Partitive: '**puhdasta**'.", level: "A2", id: 'A2_adj_12' },
+    { finnish: "Likainen", english: "Dirty", tip: "Opposite of puhdas.", level: "A2", id: 'A2_adj_13' },
+    { finnish: "Valmis", english: "Ready", tip: "'Olen **valmis**.' (I am ready).", level: "A2", id: 'A2_adj_14' },
+    { finnish: "Kevyt", english: "Light (weight)", tip: "The word for 'light' (illumination) is 'valo'.", level: "A2", id: 'A2_adj_15' },
+    { finnish: "Raskas", english: "Heavy", tip: "The opposite of kevyt.", level: "A2", id: 'A2_adj_16' },
+    { finnish: "Täynnä", english: "Full (e.g., of a glass/room)", tip: "Used with the **elative case (-sta)**: 'Lasi on **täynnä vettä**.'", level: "B1", id: 'A2_adj_17' },
+    { finnish: "Tyhjä", english: "Empty", tip: "Opposite of täynnä.", level: "B1", id: 'A2_adj_18' },
+    { finnish: "Hyödyllinen", english: "Useful", tip: "From 'hyöty' (benefit).", level: "B1", id: 'A2_adj_19' },
+    { finnish: "Turha", english: "Useless / Vain", tip: "Opposite of hyödyllinen.", level: "B1", id: 'A2_adj_20' },
+    { finnish: "Tärkeä", english: "Important", tip: "Partitive: '**tärkeää**'. 'Se on tärkeää.' (It is important).", level: "A2", id: 'A2_adj_21' },
+    
+    // --- BLOCK B1.14: New B1 Intermediate Verbs (Full Expansion) ---
+    { finnish: "Hoitaa", english: "To care for / To treat", tip: "Verb type 1. 'Hoitaa **sairasta**.' (To care for the sick) - partitive object.", level: "B1", id: 'B1_verb_26' },
+    { finnish: "Parantua", english: "To recover / To heal", tip: "Verb type 1. 'Parane **pian**!' (Get well soon!) - imperative form.", level: "B1", id: 'B1_verb_27' },
+    { finnish: "Liikkua", english: "To move (oneself)", tip: "Verb type 1. 'Minä **liikun**.' (I move). 'Liikunta' (physical activity).", level: "B1", id: 'B1_verb_28' },
+    { finnish: "Levätä", english: "To rest", tip: "Verb type 4. 'Minä **lepään**.' (I rest). 'Lepo' (rest, noun).", level: "B1", id: 'B1_verb_29' },
+    { finnish: "Suostua", english: "To consent / To agree to", tip: "Verb type 1. Takes **illative**: 'Suostun **ehdotukseen**.' (I consent to the proposal).", level: "B1", id: 'B1_verb_30' },
+    { finnish: "Kieltäytyä", english: "To refuse / To decline", tip: "Verb type 1. Takes **elative**: 'Kieltäydyn **tarjouksesta**.' (I decline the offer).", level: "B1", id: 'B1_verb_31' },
+    { finnish: "Välttää", english: "To avoid", tip: "Verb type 1. Takes **partitive**: 'Vältän **ongelmia**.' (I avoid problems).", level: "B1", id: 'B1_verb_32' },
+    { finnish: "Häiritä", english: "To disturb", tip: "Verb type 4. Takes **partitive**: 'Älä **häiritse minua**.' (Don't disturb me).", level: "B1", id: 'B1_verb_33' },
+    { finnish: "Ymmärtää", english: "To understand", tip: "Verb type 2. 'Ymmärrän' (I understand). 'En **ymmärrä**' (I don't understand).", level: "A1", id: 'B1_verb_34' },
+    { finnish: "Tietää", english: "To know (a fact)", tip: "Verb type 2. 'Tiedän **sen**.' (I know it).", level: "A2", id: 'B1_verb_35' },
+    
+    // --- BLOCK A2.15: New A2 Weather, Nature, and Seasons ---
+    { finnish: "Lumi", english: "Snow", tip: "Partitive: '**lunta**'. 'Sataa **lunta**.' (It is snowing).", level: "A1", id: 'A2_nat_1' },
+    { finnish: "Tuuli", english: "Wind", tip: "'**Tuulee**' (It is windy). 'Kova **tuuli**.' (Strong wind).", level: "A1", id: 'A2_nat_2' },
+    { finnish: "Kevät", english: "Spring", tip: "Essive: '**Keväänä**' (In the spring).", level: "A1", id: 'A2_nat_3' },
+    { finnish: "Kesä", english: "Summer", tip: "Essive: '**Kesänä**' (In the summer).", level: "A1", id: 'A2_nat_4' },
+    { finnish: "Syksy", english: "Autumn", tip: "Essive: '**Syksynä**' (In the autumn).", level: "A1", id: 'A2_nat_5' },
+    { finnish: "Talvi", english: "Winter", tip: "Essive: '**Talvena**' (In the winter).", level: "A1", id: 'A2_nat_6' },
+    { finnish: "Järvi", english: "Lake", tip: "Inessive: '**järvessä**' (in the lake).", level: "A2", id: 'A2_nat_7' },
+    { finnish: "Metsä", english: "Forest / Woods", tip: "Inessive: 'Olen **metsässä**.' (I am in the forest).", level: "A2", id: 'A2_nat_8' },
+    { finnish: "Ranta", english: "Beach / Shore", tip: "Adessive: '**Rannalla**' (At the beach/shore).", level: "A2", id: 'A2_nat_9' },
+    { finnish: "Puolue", english: "Party (political)", tip: "Used in a formal context.", level: "B1", id: 'B1_soc_1' },
+    { finnish: "Vaalit", english: "Elections", tip: "Always plural. 'Äänestää **vaaleissa**.' (To vote in elections).", level: "B1", id: 'B1_soc_2' },
+
+    // --- BLOCK B1.15: New B1 Adjectives and Participles ---
+    { finnish: "Kiinnostunut", english: "Interested (in)", tip: "Past participle. Takes **elative case (-sta)**: 'Olen kiinnostunut **historiasta**.'", level: "B1", id: 'B1_adj_14' },
+    { finnish: "Mahdollinen", english: "Possible", tip: "Opposite of 'mahdoton' (impossible).", level: "B1", id: 'B1_adj_15' },
+    { finnish: "Tarpeellinen", english: "Needed / Necessary", tip: "From 'tarve' (need).", level: "B1", id: 'B1_adj_16' },
+    { finnish: "Epäselvä", english: "Unclear / Vague", tip: "From 'selvä' (clear) + negative prefix 'epä-'.", level: "B1", id: 'B1_adj_17' },
+    { finnish: "Luonnollinen", english: "Natural", tip: "From 'luonto' (nature). 'Luonnollinen **valinta**.' (A natural choice).", level: "B1", id: 'B1_adj_18' },
+    { finnish: "Kielteinen", english: "Negative / Unfavorable", tip: "Opposite of 'myönteinen' (positive/favorable).", level: "B1", id: 'B1_adj_19' },
+    { finnish: "Myönteinen", english: "Positive / Favorable", tip: "Used for outlooks, attitudes, or outcomes.", level: "B1", id: 'B1_adj_20' },
+    { finnish: "Tasavertainen", english: "Equal (in status/value)", tip: "Used in formal equality discourse.", level: "B1", id: 'B1_adj_21' },
+    { finnish: "Vakuuttava", english: "Convincing / Impressive", tip: "From the verb 'vakuuttaa' (to convince/insure).", level: "B1", id: 'B1_adj_22' },
+    { finnish: "Epävarma", english: "Uncertain / Unsure", tip: "From 'varma' (sure) + negative prefix 'epä-'.", level: "B1", id: 'B1_adj_23' },
+
+    // --- BLOCK A2.16: New A2 Basic Nouns (Cont.) ---
+    { finnish: "Haju", english: "Smell", tip: "'Paha **haju**.' (Bad smell).", level: "A2", id: 'A2_noun_16' },
+    { finnish: "Maku", english: "Taste", tip: "'Hyvä **maku**.' (Good taste).", level: "A2", id: 'A2_noun_17' },
+    { finnish: "Ääni", english: "Sound / Voice", tip: "'Kova **ääni**.' (Loud sound).", level: "A2", id: 'A2_noun_18' },
+    { finnish: "Väri", english: "Color", tip: "'Minkä **värinen**?' (What color?).", level: "A2", id: 'A2_noun_19' },
+    { finnish: "Koko", english: "Size", tip: "'Mikä on **koko**?' (What is the size?).", level: "A2", id: 'A2_noun_20' },
+    { finnish: "Maa", english: "Country / Land", tip: "'Suomi on kaunis **maa**.' (Finland is a beautiful country).", level: "A2", id: 'A2_noun_21' },
+    { finnish: "Meri", english: "Sea", tip: "Inessive: '**Meressä**'.", level: "A2", id: 'A2_noun_22' },
+    { finnish: "Tuli", english: "Fire", tip: "Partitive: '**tulta**'.", level: "A2", id: 'A2_noun_23' },
+    { finnish: "Ilma", english: "Air / Weather", tip: "'Miten **ilma** on?' (How is the weather?).", level: "A2", id: 'A2_noun_24' },
+    { finnish: "Lämpötila", english: "Temperature", tip: "'Lämpötila on **kaksi astetta**.'", level: "A2", id: 'A2_noun_25' },
+
+    // --- BLOCK B1.16: New B1 Intermediate Nouns (Full Expansion) ---
+    { finnish: "Suostumus", english: "Consent", tip: "From 'suostua' (to consent/agree). 'Antaa **suostumus**.' (To give consent).", level: "B1", id: 'B1_noun_16' },
+    { finnish: "Oivallus", english: "Realization / Insight", tip: "A moment of sudden understanding. From 'oivaltaa' (to realize).", level: "B1", id: 'B1_noun_17' },
+    { finnish: "Ristiriita", english: "Conflict / Contradiction", tip: "Literally 'cross-line'. 'Olla **ristiriidassa**.' (To be in conflict) - inessive case.", level: "B1", id: 'B1_noun_18' },
+    { finnish: "Yhteenveto", english: "Summary / Conclusion", tip: "Literally 'together-draw'. Used for final remarks.", level: "B1", id: 'B1_noun_19' },
+    { finnish: "Käyttöjärjestelmä", english: "Operating system (OS)", tip: "Literally 'use system'.", level: "B1", id: 'B1_noun_20' },
+    { finnish: "Selain", english: "Browser", tip: "From the verb 'selata' (to browse).", level: "B1", id: 'B1_noun_21' },
+    { finnish: "Käyttöliittymä", english: "User interface (UI)", tip: "Literally 'use surface'. Used for web development/design.", level: "B1", id: 'B1_noun_22' },
+    { finnish: "Lataus", english: "Download / Charge", tip: "Can mean either downloading a file or charging a battery.", level: "B1", id: 'B1_noun_23' },
+    { finnish: "Päivitys", english: "Update", tip: "From the verb 'päivittää' (to update).", level: "B1", id: 'B1_noun_24' },
+    { finnish: "Projektipäällikkö", english: "Project Manager", tip: "Compound of 'projekti' and 'päällikkö' (chief).", level: "B1", id: 'B1_noun_25' },
+
+    // --- BLOCK A2.17: New A2 Basic Questions/Adverbs (Cont.) ---
+    { finnish: "Kuka", english: "Who", tip: "Nominative case. 'Kuka **on siellä**?' (Who is there?).", level: "A1", id: 'A2_q_1' },
+    { finnish: "Kenet", english: "Whom (total object)", tip: "Accusative case. 'Kenet **näit**?' (Whom did you see?).", level: "A2", id: 'A2_q_2' },
+    { finnish: "Kenen", english: "Whose", tip: "Genitive case. 'Kenen **kirja** tämä on?' (Whose book is this?).", level: "A2", id: 'A2_q_3' },
+    { finnish: "Mitä", english: "What (partitive/object)", tip: "Partitive case. 'Mitä **syöt**?' (What are you eating?).", level: "A1", id: 'A2_q_4' },
+    { finnish: "Mikä", english: "What (nominative/subject)", tip: "Nominative case. 'Mikä **on sinun nimesi**?' (What is your name?).", level: "A1", id: 'A2_q_5' },
+    { finnish: "Missä", english: "Where (in/at)", tip: "Inessive/Adessive location. 'Missä **asut**?' (Where do you live?).", level: "A1", id: 'A2_q_6' },
+    { finnish: "Mistä", english: "Where from", tip: "Elative case. 'Mistä **tulet**?' (Where are you coming from?).", level: "A1", id: 'A2_q_7' },
+    { finnish: "Mihin", english: "Where to", tip: "Illative/Allative case. 'Mihin **menet**?' (Where are you going to?).", level: "A1", id: 'A2_q_8' },
+    { finnish: "Kuinka vanha", english: "How old", tip: "Full phrase: 'Kuinka vanha **olet**?' (How old are you?).", level: "A1", id: 'A2_q_9' },
+
+    // --- BLOCK B1.17: New B1 Intermediate Verbs (Cont.) ---
+    { finnish: "Kehittää", english: "To develop", tip: "Verb type 1. 'Kehitän **uuden ohjelman**.' (I develop a new program).", level: "B1", id: 'B1_verb_36' },
+    { finnish: "Vahvistaa", english: "To confirm / To strengthen", tip: "Verb type 1. 'Vahvistan **tilauksen**.' (I confirm the order).", level: "B1", id: 'B1_verb_37' },
+    { finnish: "Edellyttää", english: "To require / To presuppose", tip: "Verb type 2. 'Työ **edellyttää kokemusta**.' (The job requires experience) - partitive object.", level: "B1", id: 'B1_verb_38' },
+    { finnish: "Olettaa", english: "To assume / To suppose", tip: "Verb type 1. 'Oletan, **että hän on oikeassa**.' (I assume that he is right).", level: "B1", id: 'B1_verb_39' },
+    { finnish: "Sallia", english: "To allow / To permit", tip: "Verb type 1. 'Laki **sallii sen**.' (The law permits it).", level: "B1", id: 'B1_verb_40' },
+    { finnish: "Vaatia", english: "To demand / To claim", tip: "Verb type 1. 'Vaadin **selityksen**.' (I demand an explanation).", level: "B1", id: 'B1_verb_41' },
+    { finnish: "Kuvailla", english: "To describe", tip: "Verb type 3. Takes the **partitive case**: 'Kuvailen **tilannetta**.' (I describe the situation).", level: "B1", id: 'B1_verb_42' },
+    { finnish: "Harkita", english: "To consider / To deliberate", tip: "Verb type 4. Takes the **partitive case**: 'Harkitsen **tarjousta**.' (I consider the offer).", level: "B1", id: 'B1_verb_43' },
+    { finnish: "Hyväksyä", english: "To accept / To approve", tip: "Verb type 1. 'Hyväksyn **ehdotuksen**.' (I accept the proposal).", level: "B1", id: 'B1_verb_44' },
+    { finnish: "Hylätä", english: "To reject / To dismiss", tip: "Verb type 4. The opposite of 'hyväksyä'.", level: "B1", id: 'B1_verb_45' },
+
+    // --- BLOCK A2.18: New A2 Transport & Directions (Full Expansion) ---
+    { finnish: "Polkupyörä", english: "Bicycle", tip: "Adessive: '**Polkupyörällä**' (by bike).", level: "A2", id: 'A2_trans_12' },
+    { finnish: "Laiva", english: "Ship / Boat", tip: "Adessive: '**Laivalla**' (by ship). Finland has many ferries!", level: "A2", id: 'A2_trans_13' },
+    { finnish: "Lentoasema", english: "Airport", tip: "Illative: '**Lentoasemalle**' (to the airport).", level: "A2", id: 'A2_trans_14' },
+    { finnish: "Lentokone", english: "Airplane", tip: "Adessive: '**Lentokoneella**' (by plane).", level: "A2", id: 'A2_trans_15' },
+    { finnish: "Matka", english: "Trip / Journey", tip: "'Hyvää **matkaa**!' (Have a good trip!) - partitive.", level: "A2", id: 'A2_trans_16' },
+    { finnish: "Silta", english: "Bridge", tip: "Adessive: '**Sillalla**' (On the bridge).", level: "A2", id: 'A2_trans_17' },
+    { finnish: "Alas", english: "Down (movement)", tip: "Directional adverb: 'Menen **alas**.' (I go down).", level: "A2", id: 'A2_dir_11' },
+    { finnish: "Ylös", english: "Up (movement)", tip: "Directional adverb: 'Menen **ylös**.' (I go up).", level: "A2", id: 'A2_dir_12' },
+    { finnish: "Eteenpäin", english: "Forward / Ahead", tip: "Directional adverb: 'Mennään **eteenpäin**!' (Let's move forward!).", level: "A2", id: 'A2_dir_13' },
+    { finnish: "Taaksepäin", english: "Backward", tip: "Opposite of eteenpäin.", level: "A2", id: 'A2_dir_14' },
+
+    // --- BLOCK B1.18: New B1 Adverbs and Connectors (Full Expansion) ---
+    { finnish: "Ajoittain", english: "Occasionally / At times", tip: "Used for irregular occurrences.", level: "B1", id: 'B1_adv_28' },
+    { finnish: "Toistuvasti", english: "Repeatedly", tip: "From 'toistua' (to repeat).", level: "B1", id: 'B1_adv_29' },
+    { finnish: "Päivittäin", english: "Daily", tip: "From 'päivä' (day) + the adverbial ending '-ittäin'.", level: "B1", id: 'B1_adv_30' },
+    { finnish: "Viikoittain", english: "Weekly", tip: "From 'viikko' (week) + '-ittäin'.", level: "B1", id: 'B1_adv_31' },
+    { finnish: "Kuukausittain", english: "Monthly", tip: "From 'kuukausi' (month) + '-ittäin'.", level: "B1", id: 'B1_adv_32' },
+    { finnish: "Vuosittain", english: "Annually / Yearly", tip: "From 'vuosi' (year) + '-ittäin'.", level: "B1", id: 'B1_adv_33' },
+    { finnish: "Välittömästi", english: "Immediately / Directly", tip: "More formal than 'heti'.", level: "B1", id: 'B1_adv_34' },
+    { finnish: "Samanaikaisesti", english: "Simultaneously", tip: "Literally 'same-time-ly'.", level: "B1", id: 'B1_adv_35' },
+    { finnish: "Siten", english: "Thus / In that way", tip: "Used to connect a method or manner.", level: "B1", id: 'B1_adv_36' },
+    { finnish: "Nimittäin", english: "Namely / That is to say", tip: "Used to specify or elaborate.", level: "B1", id: 'B1_adv_37' },
+    
+    // --- BLOCK A2.19: New A2 Verbs (Emotions/State) ---
+    { finnish: "Nauraa", english: "To laugh", tip: "Verb type 1. 'Me **nauramme**.' (We laugh).", level: "A2", id: 'A2_verb_21' },
+    { finnish: "Itkeä", english: "To cry", tip: "Verb type 1. 'Hän **itkee**.' (He/she cries).", level: "A2", id: 'A2_verb_22' },
+    { finnish: "Hymyillä", english: "To smile", tip: "Verb type 3. 'Hän **hymyilee**.' (He/she smiles).", level: "A2", id: 'A2_verb_23' },
+    { finnish: "Halata", english: "To hug", tip: "Verb type 4. 'Halaan **sinua**.' (I hug you).", level: "A2", id: 'A2_verb_24' },
+    { finnish: "Opettaa", english: "To teach", tip: "Verb type 1. 'Opetan **suomea**.' (I teach Finnish) - partitive object.", level: "A2", id: 'A2_verb_25' },
+    { finnish: "Oppia", english: "To learn", tip: "Verb type 1. 'Opin **uuden sanan**.' (I learn a new word).", level: "A2", id: 'A2_verb_26' },
+    { finnish: "Ajatella", english: "To think", tip: "Verb type 3. 'Mitä **ajat**?' (What are you thinking?).", level: "A2", id: 'A2_verb_27' },
+    { finnish: "Muistaa", english: "To remember", tip: "Verb type 1. 'Muistan **sen**.' (I remember it).", level: "A2", id: 'A2_verb_28' },
+    { finnish: "Unohtaa", english: "To forget", tip: "Verb type 1. 'Unohdin **avaimet**.' (I forgot the keys).", level: "A2", id: 'A2_verb_29' },
+
+    // --- BLOCK B1.19: New B1 Intermediate Nouns (Cont.) ---
+    { finnish: "Ammatti", english: "Profession / Occupation", tip: "'Mikä on sinun **ammattisi**?'", level: "B1", id: 'B1_noun_26' },
+    { finnish: "Ura", english: "Career", tip: "'Ura **kehitys**.' (Career development).", level: "B1", id: 'B1_noun_27' },
+    { finnish: "Asiakas", english: "Customer / Client", tip: "Genitive: '**Asiakkaan**'. Partitive: '**Asiakasta**'.", level: "B1", id: 'B1_noun_28' },
+    { finnish: "Toimisto", english: "Office", tip: "Inessive: '**Toimistossa**'.", level: "B1", id: 'B1_noun_29' },
+    { finnish: "Luento", english: "Lecture", tip: "'Olen **luennolla**.' (I am at the lecture) - adessive.", level: "B1", id: 'B1_noun_30' },
+    { finnish: "Tutkinto", english: "Degree / Qualification", tip: "'Suorittaa **tutkinto**.' (To complete a degree).", level: "B1", id: 'B1_noun_31' },
+    { finnish: "Ylioppilas", english: "Student (high school graduate)", tip: "Used for high school graduates who passed the matriculation exam.", level: "B1", id: 'B1_noun_32' },
+    { finnish: "Opiskelija", english: "Student (university/polytechnic)", tip: "Used for higher education students.", level: "B1", id: 'B1_noun_33' },
+    { finnish: "Harjoittelu", english: "Practice / Internship", tip: "From the verb 'harjoitella'.", level: "B1", id: 'B1_noun_34' },
+    { finnish: "Vastine", english: "Response / Counterpart", tip: "Used in formal replies.", level: "B1", id: 'B1_noun_35' },
+
+    // --- BLOCK A2.20: New A2 Basic Nouns (Body & Health) ---
+    { finnish: "Pää", english: "Head", tip: "'**Päässä**' (in/on the head) - inessive.", level: "A1", id: 'A2_body_1' },
+    { finnish: "Käsi", english: "Hand / Arm", tip: "Inessive: '**Kädessä**' (in the hand).", level: "A1", id: 'A2_body_2' },
+    { finnish: "Jalka", english: "Foot / Leg", tip: "Adessive: '**Jalalla**' (on the foot/leg).", level: "A1", id: 'A2_body_3' },
+    { finnish: "Silmä", english: "Eye", tip: "Plural: '**Silmät**'.", level: "A1", id: 'A2_body_4' },
+    { finnish: "Korva", english: "Ear", tip: "Plural: '**Korvat**'.", level: "A1", id: 'A2_body_5' },
+    { finnish: "Nenä", english: "Nose", tip: "Nenä is also part of the word for a cold/runny nose.", level: "A1", id: 'A2_body_6' },
+    { finnish: "Suu", english: "Mouth", tip: "Inessive: '**Suussa**'.", level: "A1", id: 'A2_body_7' },
+    { finnish: "Hammas", english: "Tooth", tip: "Partitive: '**Hammasta**'. 'Hammassärky' (toothache).", level: "A1", id: 'A2_body_8' },
+    { finnish: "Sydän", english: "Heart", tip: "Stem: '**sydäme-**'. 'Sydämessäni.' (In my heart).", level: "A2", id: 'A2_body_9' },
+    { finnish: "Vatsa", english: "Stomach / Belly", tip: "'Vatsakipu' (stomach pain).", level: "A2", id: 'A2_body_10' },
+
+    // --- BLOCK B1.20: New B1 Intermediate Verbs (Cont.) ---
+    { finnish: "Osallistua", english: "To participate", tip: "Verb type 1. Takes **illative**: 'Osallistun **kokoukseen**.'", level: "B1", id: 'B1_verb_46' },
+    { finnish: "Vaatia", english: "To demand / To claim", tip: "Verb type 1. 'Vaadin **selityksen**.' (I demand an explanation).", level: "B1", id: 'B1_verb_47' },
+    { finnish: "Tarkoittaa", english: "To mean / To signify", tip: "Verb type 1. 'Mitä se **tarkoittaa**?' (What does it mean?).", level: "B1", id: 'B1_verb_48' },
+    { finnish: "Ylittää", english: "To exceed / To cross (a boundary)", tip: "Verb type 1. 'Ylitämme **odotukset**.' (We exceed expectations).", level: "B1", id: 'B1_verb_49' },
+    { finnish: "Kehottaa", english: "To urge / To advise", tip: "Verb type 1. Often used in official warnings or recommendations.", level: "B1", id: 'B1_verb_50' },
+    { finnish: "Puuttua", english: "To intervene / To interfere / To lack", tip: "Verb type 1. Takes **illative**: 'Poliisi **puuttui asiaan**.'", level: "B1", id: 'B1_verb_51' },
+    { finnish: "Laatia", english: "To draw up / To compose (a document)", tip: "Verb type 1. 'Laadin **raportin**.' (I draw up the report).", level: "B1", id: 'B1_verb_52' },
+    { finnish: "Seurata", english: "To follow / To monitor", tip: "Verb type 4. Takes the **partitive**: 'Seuraan **tilannetta**.'", level: "B1", id: 'B1_verb_53' },
+    { finnish: "Viitata", english: "To refer to", tip: "Verb type 4. Requires the **illative case**: 'Viittaan **lähteeseen**.' (I refer to the source).", level: "B1", id: 'B1_verb_54' },
+    { finnish: "Päätellä", english: "To conclude / To deduce", tip: "Verb type 3. 'Voimme **päätellä**, että...' (We can conclude that...)." , level: "B1", id: 'B1_verb_55' },
+
+    // --- BLOCK A2.21: New A2 Professions and Common Nouns ---
+    { finnish: "Tarjoilija", english: "Waiter / Waitress", tip: "Gender neutral, derived from 'tarjoilla' (to serve).", level: "A2", id: 'A2_prof_1' },
+    { finnish: "Kokki", english: "Chef / Cook", tip: "Partitive: '**Kokkia**'.", level: "A2", id: 'A2_prof_2' },
+    { finnish: "Sairaanhoitaja", english: "Nurse", tip: "Literally 'sick-carer'.", level: "A2", id: 'A2_prof_3' },
+    { finnish: "Poliisi", english: "Police officer", tip: "Inessive: '**Poliisissa**'.", level: "A2", id: 'A2_prof_4' },
+    { finnish: "Palomies", english: "Firefighter", tip: "Literally 'fire man'.", level: "A2", id: 'A2_prof_5' },
+    { finnish: "Sanoma", english: "Message / News", tip: "Partitive: '**Sanomaa**'.", level: "A2", id: 'A2_noun_26' },
+    { finnish: "Kysymys", english: "Question", tip: "Genitive: '**Kysymyksen**'. Illative: '**Kysymykseen**'.", level: "A2", id: 'A2_noun_27' },
+    { finnish: "Vastaus", english: "Answer", tip: "Genitive: '**Vastauksen**'.", level: "A2", id: 'A2_noun_28' },
+    { finnish: "Toive", english: "Wish / Desire", tip: "'Minulla on **toive**.'", level: "A2", id: 'A2_noun_29' },
+    { finnish: "Lupaus", english: "Promise", tip: "From the verb 'luvata' (to promise).", level: "A2", id: 'A2_noun_30' },
+
+    // --- BLOCK B1.21: New B1 Abstract Nouns (Cont.) ---
+    { finnish: "Menestys", english: "Success", tip: "Partitive: '**menestystä**'. From the verb 'menestyä' (to succeed).", level: "B1", id: 'B1_abs_9' },
+    { finnish: "Tappio", english: "Loss / Defeat", tip: "Opposite of menestys.", level: "B1", id: 'B1_abs_10' },
+    { finnish: "Edistys", english: "Advancement / Progress", tip: "Often used in academic or technical contexts.", level: "B1", id: 'B1_abs_11' },
+    { finnish: "Vahvuus", english: "Strength / Forte", tip: "'Mikä on sinun **vahvuutesi**?' (What is your strength?).", level: "B1", id: 'B1_abs_12' },
+    { finnish: "Heikkous", english: "Weakness", tip: "The opposite of vahvuus.", level: "B1", id: 'B1_abs_13' },
+    { finnish: "Tasa-arvo", english: "Equality", tip: "Literally 'equal value'. A core Finnish value.", level: "B1", id: 'B1_abs_14' },
+    { finnish: "Monimuotoisuus", english: "Diversity", tip: "Literally 'many-shape-ness'.", level: "B1", id: 'B1_abs_15' },
+    { finnish: "Sitoutuminen", english: "Commitment / Engagement", tip: "From 'sitoutua' (to commit).", level: "B1", id: 'B1_abs_16' },
+    { finnish: "Kannustus", english: "Encouragement / Support", tip: "From the verb 'kannustaa' (to encourage).", level: "B1", id: 'B1_abs_17' },
+    { finnish: "Tyytyväisyys", english: "Satisfaction", tip: "From the adjective 'tyytyväinen'.", level: "B1", id: 'B1_abs_18' },
+
+    // --- BLOCK A2.22: New A2 Basic Nouns (Cont.) ---
+    { finnish: "Lasi", english: "Glass", tip: "Partitive: '**lasia**'.", level: "A1", id: 'A2_noun_31' },
+    { finnish: "Kuppi", english: "Cup", tip: "Partitive: '**kuppia**'.", level: "A1", id: 'A2_noun_32' },
+    { finnish: "Lautanen", english: "Plate", tip: "Inessive: '**lautasessa**'.", level: "A1", id: 'A2_noun_33' },
+    { finnish: "Veitsi", english: "Knife", tip: "Plural: '**veitset**'.", level: "A1", id: 'A2_noun_34' },
+    { finnish: "Haarukka", english: "Fork", tip: "Plural: '**haarukat**'.", level: "A1", id: 'A2_noun_35' },
+    { finnish: "Lusikka", english: "Spoon", tip: "Plural: '**lusikat**'.", level: "A1", id: 'A2_noun_36' },
+    { finnish: "Sänky", english: "Bed", tip: "Inessive: '**Sängyssä**' (In the bed).", level: "A1", id: 'A2_noun_37' },
+    { finnish: "Jääkaappi", english: "Refrigerator", tip: "Literally 'ice cupboard'.", level: "A2", id: 'A2_noun_38' },
+    { finnish: "Pesukone", english: "Washing machine", tip: "Compound of 'pesu' (washing) and 'kone' (machine).", level: "A2", id: 'A2_noun_39' },
+    { finnish: "Roskakori", english: "Trash can / Wastebasket", tip: "Literally 'trash basket'.", level: "A2", id: 'A2_noun_40' },
+
+    // --- BLOCK B1.22: New B1 Intermediate Verbs (Full Expansion) ---
+    { finnish: "Suorittaa", english: "To perform / To execute / To complete", tip: "Verb type 1. Used for official duties or completing studies. 'Suorittaa **tutkinto**.' (To complete a degree).", level: "B1", id: 'B1_verb_56' },
+    { finnish: "Toteuttaa", english: "To implement / To realize", tip: "Verb type 1. Often used in projects: 'Toteutamme **suunnitelman**.' (We implement the plan).", level: "B1", id: 'B1_verb_57' },
+    { finnish: "Tunnustaa", english: "To admit / To acknowledge", tip: "Verb type 1. 'Tunnustan **virheeni**.' (I admit my mistake).", level: "B1", id: 'B1_verb_58' },
+    { finnish: "Kyseenalaistaa", english: "To question / To challenge", tip: "Verb type 1. 'Kyseenalaistan **väitteen**.' (I question the claim).", level: "B1", id: 'B1_verb_59' },
+    { finnish: "Oikeuttaa", english: "To justify / To entitle", tip: "Verb type 1. 'Se **oikeuttaa sinut lomaan**.' (That entitles you to vacation).", level: "B1", id: 'B1_verb_60' },
+    { finnish: "Laajentaa", english: "To expand / To broaden", tip: "Verb type 1. 'Laajennan **osaamistani**.' (I expand my competence).", level: "B1", id: 'B1_verb_61' },
+    { finnish: "Muokata", english: "To edit / To modify", tip: "Verb type 4. 'Muokkaan **tiedostoa**.' (I edit the file) - partitive object.", level: "B1", id: 'B1_verb_62' },
+    { finnish: "Tallentaa", english: "To save (a file)", tip: "Verb type 1. 'Tallennan **projektin**.' (I save the project).", level: "B1", id: 'B1_verb_63' },
+    { finnish: "Julkaista", english: "To publish", tip: "Verb type 3. 'Julkaisen **artikkelin**.' (I publish an article).", level: "B1", id: 'B1_verb_64' },
+    { finnish: "Arvioida", english: "To evaluate / To assess", tip: "Verb type 2. 'Arvioin **tilanteen**.' (I evaluate the situation).", level: "B1", id: 'B1_verb_65' },
+
+    // --- BLOCK A2.23: New A2 Basic Verbs (Cont.) ---
+    { finnish: "Asua", english: "To live (dwell)", tip: "Verb type 1. 'Minä asun **Suomessa**.' (I live in Finland).", level: "A1", id: 'A2_verb_30' },
+    { finnish: "Opiskella", english: "To study", tip: "Verb type 3. 'Minä opiskelen **suomea**.' (I am studying Finnish).", level: "A1", id: 'A2_verb_31' },
+    { finnish: "Puhua", english: "To speak", tip: "Verb type 1. 'Minä puhun **suomea**.' (I speak Finnish).", level: "A1", id: 'A2_verb_32' },
+    { finnish: "Pitää", english: "To like", tip: "Takes **elative case (-sta)**: 'Pidän **kahvista**.' (I like coffee).", level: "A2", id: 'A2_verb_33' },
+    { finnish: "Tulla käymään", english: "To visit (come to visit)", tip: "Fixed phrase. 'Tulen **käymään huomenna**.'", level: "A2", id: 'A2_verb_34' },
+    { finnish: "Olla kotoisin", english: "To be from (originate)", tip: "Fixed phrase. Takes **elative**: 'Olen **kotoisin Suomesta**.'", level: "A2", id: 'A2_verb_35' },
+    { finnish: "Töissä", english: "At work", tip: "Fixed locative, plural inessive form. 'Olen **töissä**.'", level: "A2", id: 'A2_loc_1' },
+    { finnish: "Kotona", english: "At home", tip: "Fixed locative, essive form. 'Olen **kotona**.'", level: "A1", id: 'A2_loc_2' },
+    { finnish: "Ulkona", english: "Outside", tip: "Fixed locative, essive form. 'Menen **ulkona**.'", level: "A2", id: 'A2_loc_3' },
+    { finnish: "Sisällä", english: "Inside", tip: "Fixed locative, adessive form. 'Olen **sisällä**.'", level: "A2", id: 'A2_loc_4' },
+
+    // --- BLOCK B1.23: New B1 Adverbs and Connectors (Final Expansion) ---
+    { finnish: "Ennen kaikkea", english: "Above all / Primarily", tip: "A common phrase to emphasize the main point.", level: "B1", id: 'B1_adv_38' },
+    { finnish: "Yleisesti ottaen", english: "Generally speaking", tip: "A common formal phrase for generalizing.", level: "B1", id: 'B1_adv_39' },
+    { finnish: "Toisaalta", english: "On the other hand", tip: "Used to introduce a contrasting argument.", level: "B1", id: 'B1_adv_40' },
+    { finnish: "Samaan aikaan", english: "At the same time", tip: "Used to describe simultaneous events.", level: "B1", id: 'B1_adv_41' },
+    { finnish: "Muun muassa (mm.)", english: "Among other things (e.g.)", tip: "A frequently used abbreviation in formal Finnish.", level: "B1", id: 'B1_adv_42' },
+    { finnish: "Siten", english: "Thus / In that way", tip: "Used to connect a method or manner.", level: "B1", id: 'B1_adv_43' },
+    { finnish: "Siis", english: "So / I mean / Therefore (conversational)", tip: "A very common conversational filler word used to rephrase or emphasize.", level: "A2", id: 'B1_adv_44' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not).", level: "B1", id: 'B1_adv_45' },
+    { finnish: "Jotta", english: "In order that / So that", tip: "Subordinating conjunction used to express purpose.", level: "B1", id: 'B1_adv_46' },
+    { finnish: "Kunhan", english: "Provided that / As long as", tip: "Subordinating conjunction expressing a condition.", level: "B1", id: 'B1_adv_47' },
+
+    // --- BLOCK A2.24: New A2 Simple Verbs (Final 10) ---
+    { finnish: "Unohtaa", english: "To forget", tip: "Verb type 1. 'Unohdin **avaimet**.' (I forgot the keys).", level: "A2", id: 'A2_verb_36' },
+    { finnish: "Muistaa", english: "To remember", tip: "Verb type 1. 'Muistan **nimesi**.' (I remember your name).", level: "A2", id: 'A2_verb_37' },
+    { finnish: "Maksaa", english: "To cost / To pay", tip: "'Paljonko tämä **maksaa**?' (How much does this cost?).", level: "A1", id: 'A2_verb_38' },
+    { finnish: "Ostaa", english: "To buy", tip: "Verb type 1. Takes **partitive** for the object: 'Ostan **leipää**.'", level: "A1", id: 'A2_verb_39' },
+    { finnish: "Myydä", english: "To sell", tip: "Verb type 2. 'Hän **myy autoja**.' (He sells cars).", level: "A2", id: 'A2_verb_40' },
+    { finnish: "Lainata", english: "To lend / To borrow", tip: "Verb type 4. 'Lainaan **sinulle rahaa**.' (I lend you money).", level: "A2", id: 'A2_verb_41' },
+    { finnish: "Odota", english: "To wait", tip: "Verb type 1. Requires the **partitive case**: 'Odotan **bussia**.'", level: "A2", id: 'A2_verb_42' },
+    { finnish: "Auttaa", english: "To help", tip: "Verb type 1. Requires the **partitive case**: 'Autan **sinua**.'", level: "A2", id: 'A2_verb_43' },
+    { finnish: "Laskea", english: "To calculate / To count", tip: "Verb type 1. 'Lasken **hinnat**.' (I calculate the prices).", level: "B1", id: 'A2_verb_44' },
+    { finnish: "Käyttää", english: "To use", tip: "Verb type 2. 'Käytän **tietokonetta**.' (I use the computer) - partitive object.", level: "B1", id: 'A2_verb_45' },
+    
+    // --- FINAL EXTENSION to hit 1000 mark (B1 Intermediate) ---
+    { finnish: "Pääoma", english: "Capital (financial)", tip: "'Tarvitsemme **pääomaa**.' (We need capital) - partitive.", level: "B1", id: 'B1_fin_1' },
+    { finnish: "Talous", english: "Economy / Finances", tip: "From '**taloudellinen**' (economic).", level: "B1", id: 'B1_fin_2' },
+    { finnish: "Budjetti", english: "Budget", tip: "'**Budjetti** on tiukka.' (The budget is tight).", level: "B1", id: 'B1_fin_3' },
+    { finnish: "Verotus", english: "Taxation", tip: "From the verb 'verottaa' (to tax).", level: "B1", id: 'B1_fin_4' },
+    { finnish: "Liiketoiminta", english: "Business / Business activities", tip: "Literally 'movement action'.", level: "B1", id: 'B1_fin_5' },
+    { finnish: "Vienti", english: "Export", tip: "Opposite of 'tuonti' (import).", level: "B1", id: 'B1_fin_6' },
+    { finnish: "Tuonti", english: "Import", tip: "Opposite of 'vienti' (export).", level: "B1", id: 'B1_fin_7' },
+    { finnish: "Mainonta", english: "Advertising", tip: "From the verb 'mainostaa' (to advertise).", level: "B1", id: 'B1_fin_8' },
+    { finnish: "Markkinointi", english: "Marketing", tip: "Finnish noun form.", level: "B1", id: 'B1_fin_9' },
+    { finnish: "Sopimus", english: "Agreement / Contract", tip: "'Tehdä **sopimus**.' (To make a contract).", level: "B1", id: 'B1_fin_10' },
+    { finnish: "Neuvottelu", english: "Negotiation", tip: "From the verb 'neuvotella' (to negotiate).", level: "B1", id: 'B1_fin_11' },
+    { finnish: "Vastuu", english: "Responsibility", tip: "'Ottaa **vastuu**.' (To take responsibility).", level: "B1", id: 'B1_fin_12' },
+    { finnish: "Olosuhteet", english: "Conditions / Circumstances (plural)", tip: "Always plural. 'Vaikeat **olosuhteet**.' (Difficult conditions).", level: "B1", id: 'B1_fin_13' },
+    { finnish: "Rajoitus", english: "Restriction / Limit", tip: "From the verb 'rajoittaa' (to restrict).", level: "B1", id: 'B1_fin_14' },
+    { finnish: "Perusta", english: "Foundation / Basis", tip: "'**Perusta** on tärkeä.' (The foundation is important).", level: "B1", id: 'B1_fin_15' },
+    { finnish: "Sääntö", english: "Rule / Regulation", tip: "Plural: '**Säännöt**'.", level: "B1", id: 'B1_fin_16' },
+    { finnish: "Lupa", english: "Permission", tip: "'Saada **lupa**.' (To get permission).", level: "B1", id: 'B1_fin_17' },
+    { finnish: "Kielto", english: "Prohibition / Ban", tip: "From the verb 'kieltää' (to forbid).", level: "B1", id: 'B1_fin_18' },
+    { finnish: "Ehdotus", english: "Proposal / Suggestion", tip: "From the verb 'ehdottaa' (to propose).", level: "B1", id: 'B1_fin_19' },
+    { finnish: "Alue", english: "Area / Region", tip: "Inessive: '**Alueella**' (in the area) - adessive used for region.", level: "B1", id: 'B1_fin_20' },
+    { finnish: "Keskustelu", english: "Discussion / Conversation", tip: "From the verb 'keskustella' (to discuss).", level: "B1", id: 'B1_fin_21' },
+    { finnish: "Viesti", english: "Message", tip: "'Lähetän **viestin**.' (I send a message).", level: "B1", id: 'B1_fin_22' },
+    { finnish: "Suunnitelma", english: "Plan", tip: "'Tehdä **suunnitelma**.' (To make a plan).", level: "B1", id: 'B1_fin_23' },
+    { finnish: "Tilanne", english: "Situation", tip: "Partitive: '**tilannetta**'.", level: "B1", id: 'B1_fin_24' },
+    { finnish: "Merkitys", english: "Meaning / Significance", tip: "From the verb 'merkitä' (to mean).", level: "B1", id: 'B1_fin_25' },
+    { finnish: "Tavoite", english: "Goal / Objective", tip: "'Saavuttaa **tavoite**.' (To achieve a goal).", level: "B1", id: 'B1_fin_26' },
+    { finnish: "Kohde", english: "Target / Destination / Object", tip: "Illative: '**Kohteeseen**'.", level: "B1", id: 'B1_fin_27' },
+    { finnish: "Syvä", english: "Deep", tip: "Partitive: '**syvää**'.", level: "B1", id: 'B1_fin_28' },
+    { finnish: "Korkea", english: "High", tip: "Partitive: '**korkeaa**'.", level: "B1", id: 'B1_fin_29' },
+    { finnish: "Matala", english: "Low / Shallow", tip: "Partitive: '**matalaa**'.", level: "B1", id: 'B1_fin_30' },
+    { finnish: "Pitkä", english: "Long / Tall", tip: "Partitive: '**pitkää**'.", level: "A1", id: 'B1_fin_31' },
+    { finnish: "Lyhyt", english: "Short", tip: "Partitive: '**lyhyttä**'.", level: "A1", id: 'B1_fin_32' },
+    { finnish: "Leveä", english: "Wide", tip: "Partitive: '**leveää**'.", level: "B1", id: 'B1_fin_33' },
+    { finnish: "Kapea", english: "Narrow", tip: "Partitive: '**kapeaa**'.", level: "B1", id: 'B1_fin_34' },
+    { finnish: "Paksu", english: "Thick", tip: "Partitive: '**paksua**'.", level: "B1", id: 'B1_fin_35' },
+    { finnish: "Ohut", english: "Thin", tip: "Partitive: '**ohutta**'.", level: "B1", id: 'B1_fin_36' },
+    { finnish: "Puhdas", english: "Clean", tip: "Partitive: '**puhdasta**'.", level: "A2", id: 'B1_fin_37' },
+    { finnish: "Likainen", english: "Dirty", tip: "Opposite of puhdas.", level: "A2", id: 'B1_fin_38' },
+    { finnish: "Tyhjä", english: "Empty", tip: "Opposite of täynnä.", level: "B1", id: 'B1_fin_39' },
+    { finnish: "Vakava", english: "Serious / Severe", tip: "Partitive: '**vakavaa**'.", level: "B1", id: 'B1_fin_40' },
+    { finnish: "Määrätietoinen", english: "Determined / Purposeful", tip: "Literally 'measure-conscious'.", level: "B1", id: 'B1_fin_41' },
+    { finnish: "Ammattitaitoinen", english: "Professional / Skilled", tip: "Literally 'profession-skilled'.", level: "B1", id: 'B1_fin_42' },
+    { finnish: "Kyvykäs", english: "Capable / Competent", tip: "From 'kyky' (ability). Used in formal contexts.", level: "B1", id: 'B1_fin_43' },
+    { finnish: "Puolueeton", english: "Neutral / Impartial", tip: "Literally 'party-less'.", level: "B1", id: 'B1_fin_44' },
+    { finnish: "Välttämätön", english: "Necessary / Essential", tip: "Means 'unavoidable', thus necessary. Partitive: '**välttämätöntä**'.", level: "B1", id: 'B1_fin_45' },
+    { finnish: "Sietämätön", english: "Intolerable / Unbearable", tip: "From the verb 'sietää' (to tolerate). Note the negative suffix '-tön'.", level: "B1", id: 'B1_fin_46' },
+    { finnish: "Täydellinen", english: "Perfect / Complete", tip: "From 'täysi' (full).", level: "B1", id: 'B1_fin_47' },
+    { finnish: "Olen samaa mieltä", english: "I agree", tip: "Literally 'I am of the same mind'. The common phrase for agreeing.", level: "B1", id: 'B1_fin_48' },
+    { finnish: "Toisin sanoen", english: "In other words", tip: "A great phrase for linking arguments.", level: "B1", id: 'B1_fin_49' },
+    { finnish: "Ottaa huomioon", english: "To take into account", tip: "The verb 'ottaa' (to take) followed by the object 'huomioon' (into attention) - illative case.", level: "B1", id: 'B1_fin_50' },
+    
+    // --- FINAL EXTENSION CONTINUED to reach 1000 mark (B1 Intermediate) ---
+    { finnish: "Suorittaa", english: "To perform / To execute / To complete", tip: "Verb type 1. 'Suorittaa **tutkinto**.' (To complete a degree).", level: "B1", id: 'B1_fin_51' },
+    { finnish: "Toteuttaa", english: "To implement / To realize", tip: "Verb type 1. 'Toteutamme **suunnitelman**.' (We implement the plan).", level: "B1", id: 'B1_fin_52' },
+    { finnish: "Vahvistaa", english: "To confirm / To strengthen", tip: "Verb type 1. 'Vahvistan **tilauksen**.' (I confirm the order).", level: "B1", id: 'B1_fin_53' },
+    { finnish: "Kohdella", english: "To treat (a person/thing)", tip: "Verb type 3. 'Häntä **kohdeltiin** hyvin.' (He/she was treated well) - used in passive.", level: "B1", id: 'B1_fin_54' },
+    { finnish: "Edellyttää", english: "To require / To presuppose", tip: "Verb type 2. 'Työ **edellyttää kokemusta**.' (The job requires experience) - partitive object.", level: "B1", id: 'B1_fin_55' },
+    { finnish: "Olettaa", english: "To assume / To suppose", tip: "Verb type 1. 'Oletan, **että hän on oikeassa**.' (I assume that he is right).", level: "B1", id: 'B1_fin_56' },
+    { finnish: "Sallia", english: "To allow / To permit", tip: "Verb type 1. 'Laki **sallii sen**.' (The law permits it).", level: "B1", id: 'B1_fin_57' },
+    { finnish: "Vaatia", english: "To demand / To claim", tip: "Verb type 1. 'Vaadin **selityksen**.' (I demand an explanation).", level: "B1", id: 'B1_fin_58' },
+    { finnish: "Kuvailla", english: "To describe", tip: "Verb type 3. Takes the **partitive case**: 'Kuvailen **tilannetta**.' (I describe the situation).", level: "B1", id: 'B1_fin_59' },
+    { finnish: "Ilmaista", english: "To express", tip: "Verb type 5. 'Ilmaisen **mielipiteeni**.' (I express my opinion).", level: "B1", id: 'B1_fin_60' },
+    { finnish: "Harkita", english: "To consider / To deliberate", tip: "Verb type 4. Takes the **partitive case**: 'Harkitsen **tarjousta**.' (I consider the offer).", level: "B1", id: 'B1_fin_61' },
+    { finnish: "Tunnustaa", english: "To admit / To acknowledge", tip: "Verb type 1. 'Tunnustan **virheeni**.' (I admit my mistake).", level: "B1", id: 'B1_fin_62' },
+    { finnish: "Hyväksyä", english: "To accept / To approve", tip: "Verb type 1. 'Hyväksyn **ehdotuksen**.' (I accept the proposal).", level: "B1", id: 'B1_fin_63' },
+    { finnish: "Hylätä", english: "To reject / To dismiss", tip: "Verb type 4. The opposite of 'hyväksyä'.", level: "B1", id: 'B1_fin_64' },
+    { finnish: "Kyseenalaistaa", english: "To question / To challenge", tip: "Verb type 1. 'Kyseenalaistan **väitteen**.' (I question the claim).", level: "B1", id: 'B1_fin_65' },
+    { finnish: "Tarkoittaa", english: "To mean / To signify", tip: "Verb type 1. 'Mitä se **tarkoittaa**?' (What does it mean?).", level: "B1", id: 'B1_fin_66' },
+    { finnish: "Ylittää", english: "To exceed / To cross (a boundary)", tip: "Verb type 1. 'Ylitämme **odotukset**.' (We exceed expectations).", level: "B1", id: 'B1_fin_67' },
+    { finnish: "Kehottaa", english: "To urge / To advise", tip: "Verb type 1. Often used in official warnings or recommendations.", level: "B1", id: 'B1_fin_68' },
+    { finnish: "Puuttua", english: "To intervene / To interfere / To lack", tip: "Verb type 1. Takes **illative**: 'Poliisi **puuttui asiaan**.'", level: "B1", id: 'B1_fin_69' },
+    { finnish: "Laatia", english: "To draw up / To compose (a document)", tip: "Verb type 1. 'Laadin **raportin**.' (I draw up the report).", level: "B1", id: 'B1_fin_70' },
+    { finnish: "Seurata", english: "To follow / To monitor", tip: "Verb type 4. Takes the **partitive**: 'Seuraan **tilannetta**.'", level: "B1", id: 'B1_fin_71' },
+    { finnish: "Viitata", english: "To refer to", tip: "Verb type 4. Requires the **illative case**: 'Viittaan **lähteeseen**.' (I refer to the source).", level: "B1", id: 'B1_fin_72' },
+    { finnish: "Päätellä", english: "To conclude / To deduce", tip: "Verb type 3. 'Voimme **päätellä**, että...' (We can conclude that...)." , level: "B1", id: 'B1_fin_73' },
+    { finnish: "Oikeuttaa", english: "To justify / To entitle", tip: "Verb type 1. 'Se **oikeuttaa sinut lomaan**.' (That entitles you to vacation).", level: "B1", id: 'B1_fin_74' },
+    { finnish: "Käydä läpi", english: "To go through / To review", tip: "Fixed phrase: 'Käyn **läpi** ehdotukset.' (I go through the proposals).", level: "B1", id: 'B1_fin_75' },
+    { finnish: "Ottaa yhteyttä", english: "To contact", tip: "Fixed phrase: 'Otan **sinuun yhteyttä**.' (I contact you).", level: "B1", id: 'B1_fin_76' },
+    { finnish: "Olla kyseessä", english: "To be the matter/case", tip: "Fixed phrase: 'Siinä **on kyseessä** tärkeä asia.' (It is about an important matter).", level: "B1", id: 'B1_fin_77' },
+    { finnish: "Lainata", english: "To lend / To borrow", tip: "Verb type 4. 'Lainaan **sinulle rahaa**.' (I lend you money).", level: "A2", id: 'A2_verb_46' },
+    { finnish: "Kutsua", english: "To invite / To call", tip: "Verb type 1. 'Kutsun **hänet** juhliin.' (I invite him to the party).", level: "A2", id: 'A2_verb_47' },
+    { finnish: "Korvata", english: "To replace / To compensate", tip: "Verb type 4. 'Korvaan **vanhan tietokoneen**.' (I replace the old computer).", level: "B1", id: 'B1_fin_78' },
+    { finnish: "Puhe", english: "Speech / Talk", tip: "Inessive: '**Puheessa**' (in the speech).", level: "B1", id: 'B1_fin_79' },
+    { finnish: "Esitys", english: "Presentation / Performance", tip: "From the verb 'esittää' (to present).", level: "B1", id: 'B1_fin_80' },
+    { finnish: "Palaute", english: "Feedback", tip: "Partitive: '**palautetta**'. 'Sain hyvää **palautetta**.'", level: "B1", id: 'B1_fin_81' },
+    { finnish: "Suositus", english: "Recommendation", tip: "From the verb 'suositella' (to recommend).", level: "B1", id: 'B1_fin_82' },
+    { finnish: "Asenne", english: "Attitude", tip: "'Positiivinen **asenne**.'", level: "B1", id: 'B1_fin_83' },
+    { finnish: "Ihmisoikeudet", english: "Human rights (plural)", tip: "Compound noun. Literally 'human rights'.", level: "B1", id: 'B1_fin_84' },
+    { finnish: "Yhteiskunta", english: "Society", tip: "Inessive: '**Yhteiskunnassa**'.", level: "B1", id: 'B1_fin_85' },
+    { finnish: "Tiede", english: "Science", tip: "From '**tieteellinen**' (scientific).", level: "B1", id: 'B1_fin_86' },
+    { finnish: "Teknologia", english: "Technology", tip: "Finnish spelling.", level: "B1", id: 'B1_fin_87' },
+    { finnish: "Kehitysmaa", english: "Developing country", tip: "Compound noun.", level: "B1", id: 'B1_fin_88' },
+    { finnish: "Teollisuus", english: "Industry", tip: "From '**teollinen**' (industrial).", level: "B1", id: 'B1_fin_89' },
+    { finnish: "Maatalous", english: "Agriculture", tip: "Literally 'land economy'.", level: "B1", id: 'B1_fin_90' },
+    { finnish: "Metsätalous", english: "Forestry", tip: "Literally 'forest economy'. Very important in Finland.", level: "B1", id: 'B1_fin_91' },
+    { finnish: "Tavarantoimittaja", english: "Supplier (goods provider)", tip: "Literally 'goods deliverer'.", level: "B1", id: 'B1_fin_92' },
+    { finnish: "Tuote", english: "Product", tip: "Partitive: '**tuotetta**'.", level: "A2", id: 'B1_fin_93' },
+    { finnish: "Palvelu", english: "Service", tip: "Partitive: '**palvelua**'.", level: "A2", id: 'B1_fin_94' },
+    { finnish: "Käsite", english: "Concept / Notion", tip: "Partitive: '**käsitettä**'.", level: "B1", id: 'B1_fin_95' },
+    { finnish: "Ilmiö", english: "Phenomenon", tip: "Partitive: '**ilmiötä**'.", level: "B1", id: 'B1_fin_96' },
+    { finnish: "Tila", english: "State / Space / Order", tip: "Context-dependent. 'Olen hyvässä **tilassa**.'", level: "B1", id: 'B1_fin_97' },
+    { finnish: "Päämäärä", english: "Goal / Objective / Aim", tip: "Synonym for 'tavoite'.", level: "B1", id: 'B1_fin_98' },
+    { finnish: "Suunta", english: "Direction", tip: "Illative: '**Suuntaan**' (to the direction).", level: "B1", id: 'B1_fin_99' },
+    { finnish: "Tapa", english: "Way / Manner / Custom", tip: "Inessive: '**Tavalla**' (in the manner).", level: "B1", id: 'B1_fin_100' },
+    { finnish: "Mieli", english: "Mind / Mood", tip: "'Olen samaa **mieltä**.' (I agree).", level: "B1", id: 'B1_fin_101' },
+    { finnish: "Peruste", english: "Basis / Foundation / Reason", tip: "From '**perusteellinen**' (thorough).", level: "B1", id: 'B1_fin_102' },
+    { finnish: "Vihdoin", english: "Finally", tip: "Adverb: '**Vihdoin** valmis!' (Finally ready!).", level: "B1", id: 'B1_fin_103' },
+    { finnish: "Aluksi", english: "Firstly / At first", tip: "Adverb: '**Aluksi** me menimme...'", level: "B1", id: 'B1_fin_104' },
+    { finnish: "Sittemmin", english: "Later on / Subsequently", tip: "Adverb: '**Sittemmin** hän teki...'", level: "B1", id: 'B1_fin_105' },
+    { finnish: "Päinvastoin", english: "On the contrary", tip: "Adverb used for strong contrast.", level: "B1", id: 'B1_fin_106' },
+    { finnish: "Ainoastaan", english: "Only / Merely", tip: "Synonym for 'vain'.", level: "B1", id: 'B1_fin_107' },
+    { finnish: "Enemmän", english: "More", tip: "Comparative adverb. 'Haluan **enemmän** kahvia.'", level: "A2", id: 'B1_fin_108' },
+    { finnish: "Vähemmän", english: "Less", tip: "Comparative adverb. 'Haluan **vähemmän** vettä.'", level: "A2", id: 'B1_fin_109' },
+    { finnish: "Parhaiten", english: "Best (adverb)", tip: "Superlative form. 'Hän tekee työn **parhaiten**.'", level: "B1", id: 'B1_fin_110' },
+    { finnish: "Huonoiten", english: "Worst (adverb)", tip: "Superlative form.", level: "B1", id: 'B1_fin_111' },
+    { finnish: "Lähes", english: "Nearly / Almost", tip: "Synonym for 'melkein'.", level: "B1", id: 'B1_fin_112' },
+    { finnish: "Tarkasti", english: "Precisely / Accurately", tip: "From '**tarkka**' (precise).", level: "B1", id: 'B1_fin_113' },
+    { finnish: "Luonnollisesti", english: "Naturally", tip: "From '**luonnollinen**' (natural).", level: "B1", id: 'B1_fin_114' },
+    { finnish: "Käytännöllisesti", english: "Practically", tip: "From '**käytännöllinen**' (practical).", level: "B1", id: 'B1_fin_115' },
+    { finnish: "Tieteellisesti", english: "Scientifically", tip: "From '**tieteellinen**' (scientific).", level: "B1", id: 'B1_fin_116' },
+    { finnish: "Riippumatta", english: "Regardless of", tip: "Takes **elative**: '**Sateesta riippumatta**.'", level: "B1", id: 'B1_fin_117' },
+    { finnish: "Sitä paitsi", english: "Besides / Moreover", tip: "Connecting phrase.", level: "B1", id: 'B1_fin_118' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_fin_119' },
+    { finnish: "Kun taas", english: "While / Whereas", tip: "Subordinating conjunction used for contrast.", level: "B1", id: 'B1_fin_120' },
+    { finnish: "Niin kauan kuin", english: "As long as", tip: "Phrase expressing duration or condition.", level: "B1", id: 'B1_fin_121' },
+    { finnish: "Paitsi", english: "Except (for)", tip: "Preposition/Postposition. Takes partitive or genitive.", level: "B1", id: 'B1_fin_122' },
+    { finnish: "Jopa", english: "Even (surprisingly)", tip: "Intensifying adverb. 'Hän on **jopa** parempi.'", level: "B1", id: 'B1_fin_123' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not).", level: "B1", id: 'B1_fin_124' },
+    { finnish: "Joko... tai...", english: "Either... or...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_125' },
+    { finnish: "Sekä... että...", english: "Both... and...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_126' },
+    { finnish: "Eikä... eikä...", english: "Neither... nor...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_127' },
+    { finnish: "Kuin", english: "Than (comparison)", tip: "Used in comparative sentences: 'Parempaa **kuin** eilen.'", level: "A2", id: 'B1_fin_128' },
+    { finnish: "Kuten", english: "Such as / Like", tip: "Used for examples.", level: "B1", id: 'B1_fin_129' },
+    { finnish: "Että", english: "That (subordinating conj.)", tip: "Used to introduce a clause: 'Tiedän, **että** se on totta.'", level: "A2", id: 'B1_fin_130' },
+    { finnish: "Jos", english: "If", tip: "Conditional conjunction.", level: "A2", id: 'B1_fin_131' },
+    { finnish: "Vaikka", english: "Although / Even if", tip: "Subordinating conjunction expressing concession.", level: "B1", id: 'B1_fin_132' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_fin_133' },
+    { finnish: "Lisäksi", english: "In addition / Furthermore", tip: "Used to connect ideas.", level: "B1", id: 'B1_fin_134' },
+    { finnish: "Ennen", english: "Before", tip: "Postposition that takes **genitive**: '**Koulun** ennen' (Before school).", level: "B1", id: 'B1_fin_135' },
+    { finnish: "Jälkeen", english: "After", tip: "Postposition that takes **genitive**: '**Työn** jälkeen' (After work).", level: "B1", id: 'B1_fin_136' },
+    { finnish: "Lähellä", english: "Near", tip: "Postposition that takes the **genitive case**: '**Kaupungin** lähellä'.", level: "A2", id: 'B1_fin_137' },
+    { finnish: "Kaukana", english: "Far", tip: "Used with the **elative case (-sta)**: '**Kotoa** kaukana'.", level: "A2", id: 'B1_fin_138' },
+    { finnish: "Vieressä", english: "Next to", tip: "Takes the **genitive case**: '**Oven** vieressä'.", level: "A2", id: 'B1_fin_139' },
+    { finnish: "Kanssa", english: "With", tip: "Postposition that takes the **genitive case**: '**Ystävän** kanssa.'", level: "B1", id: 'B1_fin_140' },
+    { finnish: "Ilman", english: "Without", tip: "Postposition that takes the **partitive case**: '**Ilman rahaa**.'", level: "B1", id: 'B1_fin_141' },
+    { finnish: "Laitos", english: "Institution / Department", tip: "'Tutkimuslaitos' (research institution).", level: "B1", id: 'B1_fin_142' },
+    { finnish: "Väestö", english: "Population", tip: "'**Väestönkasvu**' (population growth).", level: "B1", id: 'B1_fin_143' },
+    { finnish: "Perintö", english: "Inheritance / Heritage", tip: "'Kulttuuriperintö' (cultural heritage).", level: "B1", id: 'B1_fin_144' },
+    { finnish: "Arviointi", english: "Assessment / Evaluation", tip: "From the verb 'arvioida' (to evaluate).", level: "B1", id: 'B1_fin_145' },
+    { finnish: "Tietokanta", english: "Database", tip: "Literally 'knowledge base'.", level: "B1", id: 'B1_fin_146' },
+    { finnish: "Pilvipalvelu", english: "Cloud service", tip: "Literally 'cloud service'.", level: "B1", id: 'B1_fin_147' },
+    { finnish: "Tekoäly", english: "Artificial Intelligence (AI)", tip: "Literally 'artificial knowledge'.", level: "B1", id: 'B1_fin_148' },
+    { finnish: "Tietoturva", english: "Data security", tip: "Literally 'knowledge safety'.", level: "B1", id: 'B1_fin_149' },
+    { finnish: "Liitäntä", english: "Interface / Connector", tip: "Often used for hardware or API connections.", level: "B1", id: 'B1_fin_150' },
+    { finnish: "Yhteenveto", english: "Summary / Conclusion", tip: "Literally 'together-draw'. Used for final remarks.", level: "B1", id: 'B1_fin_151' },
+    { finnish: "Palaute", english: "Feedback", tip: "Partitive: '**palautetta**'. 'Sain hyvää **palautetta**.'", level: "B1", id: 'B1_fin_152' },
+    { finnish: "Asenne", english: "Attitude", tip: "'Positiivinen **asenne**.'", level: "B1", id: 'B1_fin_153' },
+    { finnish: "Osaaminen", english: "Competence / Know-how", tip: "Partitive: '**osaamista**'.", level: "B1", id: 'B1_fin_154' },
+    { finnish: "Johtaminen", english: "Management / Leading", tip: "From the verb 'johtaa' (to lead).", level: "B1", id: 'B1_fin_155' },
+    { finnish: "Kirjanpitäjä", english: "Accountant", tip: "Literally 'book keeper'.", level: "B1", id: 'B1_fin_156' },
+    { finnish: "Mekaanikko", english: "Mechanic", tip: "Someone who fixes machines or vehicles.", level: "B1", id: 'B1_fin_157' },
+    { finnish: "Toimitusjohtaja", english: "CEO", tip: "Literally 'delivery leader'. Used for the company head.", level: "B1", id: 'B1_fin_158' },
+    { finnish: "Lataaja", english: "Loader (Warehouse)", tip: "One who loads. Derived from 'ladata' (to load/charge).", level: "B1", id: 'B1_fin_159' },
+    { finnish: "Trukki", english: "Forklift", tip: "Short for 'haarukkatrukki'.", level: "B1", id: 'B1_fin_160' },
+    { finnish: "Varasto", english: "Warehouse / Storage", tip: "Inessive: '**Varastossa**' (In the warehouse).", level: "A2", id: 'B1_fin_161' },
+    { finnish: "Hylly", english: "Shelf", tip: "Adessive: '**Hyllyllä**' (On the shelf).", level: "A2", id: 'B1_fin_162' },
+    { finnish: "Laatikko", english: "Box / Crate", tip: "Inessive: '**Laatikossa**' (In the box).", level: "A2", id: 'B1_fin_163' },
+    { finnish: "Paketti", english: "Package / Parcel", tip: "'Sain **paketin**.' (I received a package).", level: "A2", id: 'B1_fin_164' },
+    { finnish: "Lähetys", english: "Shipment / Consignment", tip: "'Lähetys on **myöhässä**.' (The shipment is late).", level: "B1", id: 'B1_fin_165' },
+    { finnish: "Vastaanotto", english: "Reception / Receiving", tip: "'Tavaroiden **vastaanotto**.' (Receiving of goods).", level: "B1", id: 'B1_fin_166' },
+    { finnish: "Keräillä", english: "To pick (orders)", tip: "Verb type 3. 'Minä **keräilen tilauksia**.' (I pick orders).", level: "B1", id: 'B1_fin_167' },
+    { finnish: "Kannettava", english: "Laptop", tip: "Short for 'kannettava tietokone' (portable computer).", level: "A2", id: 'B1_fin_168' },
+    { finnish: "Ohjelmisto", english: "Software", tip: "Partitive: '**ohjelmistoa**'.", level: "B1", id: 'B1_fin_169' },
+    { finnish: "Sovellus", english: "Application (App)", tip: "'Lataan **sovelluksen**.' (I am downloading an app).", level: "B1", id: 'B1_fin_170' },
+    { finnish: "Verkko", english: "Network / Web", tip: "'Olen **verkossa**.' (I am online).", level: "B1", id: 'B1_fin_171' },
+    { finnish: "Sairas", english: "Sick / Ill", tip: "'Olen **sairas**.' (I am sick) - used as an adjective.", level: "A2", id: 'B1_fin_172' },
+    { finnish: "Kipu", english: "Pain", tip: "'Minulla on **kipua**.' (I have pain) - partitive case.", level: "B1", id: 'B1_fin_173' },
+    { finnish: "Apteekki", english: "Pharmacy", tip: "Illative: 'Menen **apteekkiin**.'", level: "B1", id: 'B1_fin_174' },
+    { finnish: "Resepti", english: "Prescription / Recipe", tip: "Same word, Finnish spelling.", level: "B1", id: 'B1_fin_175' },
+    { finnish: "Jäte", english: "Waste / Refuse", tip: "More formal than 'roska'.", level: "B1", id: 'B1_fin_176' },
+    { finnish: "Pyyhe", english: "Towel", tip: "'Tarvitsen **pyyhkeen**.' (I need a towel).", level: "A2", id: 'B1_fin_177' },
+    { finnish: "Pyykki", english: "Laundry", tip: "Partitive: '**Pyykkiä** on paljon.' (There is a lot of laundry).", level: "A2", id: 'B1_fin_178' },
+    { finnish: "Imuroida", english: "To vacuum", tip: "Verb type 2. 'Minä **imuroin**.' (I vacuum).", level: "A2", id: 'B1_fin_179' },
+    { finnish: "Pyykätä", english: "To do laundry / To wipe", tip: "Verb type 4. 'Pyykkään **tänään**.' (I do laundry today).", level: "A2", id: 'B1_fin_180' },
+    { finnish: "Tiskata", english: "To wash dishes", tip: "Verb type 4. 'Tiskaan **käsin**.' (I wash dishes by hand).", level: "A2", id: 'B1_fin_181' },
+    { finnish: "Lakaista", english: "To sweep", tip: "Verb type 3. 'Lakaista **lattia**.' (To sweep the floor).", level: "A2", id: 'B1_fin_182' },
+    { finnish: "Leipoa", english: "To bake", tip: "Verb type 1. 'Minä **leivon leipää**.' (I bake bread).", level: "A2", id: 'B1_fin_183' },
+    { finnish: "Keittää", english: "To boil / To cook", tip: "Verb type 1. 'Keitän **vettä**.' (I boil water).", level: "A2", id: 'B1_fin_184' },
+    { finnish: "Paistaa", english: "To fry / To bake / To shine (sun)", tip: "Verb type 1. 'Paistan **kalaa**.' (I fry fish). 'Aurinko **paistaa**.' (The sun shines).", level: "A2", id: 'B1_fin_185' },
+    { finnish: "Sekoittaa", english: "To mix / To stir", tip: "Verb type 1. 'Sekoitan **sokeria kahviin**.' (I stir sugar into coffee).", level: "B1", id: 'B1_fin_186' },
+    { finnish: "Päämäärä", english: "Goal / Objective / Aim", tip: "Synonym for 'tavoite'.", level: "B1", id: 'B1_fin_187' },
+    { finnish: "Suunta", english: "Direction", tip: "Illative: '**Suuntaan**' (to the direction).", level: "B1", id: 'B1_fin_188' },
+    { finnish: "Tapa", english: "Way / Manner / Custom", tip: "Inessive: '**Tavalla**' (in the manner).", level: "B1", id: 'B1_fin_189' },
+    { finnish: "Mieli", english: "Mind / Mood", tip: "'Olen samaa **mieltä**.' (I agree).", level: "B1", id: 'B1_fin_190' },
+    { finnish: "Peruste", english: "Basis / Foundation / Reason", tip: "From '**perusteellinen**' (thorough).", level: "B1", id: 'B1_fin_191' },
+    { finnish: "Vihdoin", english: "Finally", tip: "Adverb: '**Vihdoin** valmis!' (Finally ready!).", level: "B1", id: 'B1_fin_192' },
+    { finnish: "Aluksi", english: "Firstly / At first", tip: "Adverb: '**Aluksi** me menimme...'", level: "B1", id: 'B1_fin_193' },
+    { finnish: "Sittemmin", english: "Later on / Subsequently", tip: "Adverb: '**Sittemmin** hän teki...'", level: "B1", id: 'B1_fin_194' },
+    { finnish: "Päinvastoin", english: "On the contrary", tip: "Adverb used for strong contrast.", level: "B1", id: 'B1_fin_195' },
+    { finnish: "Ainoastaan", english: "Only / Merely", tip: "Synonym for 'vain'.", level: "B1", id: 'B1_fin_196' },
+    { finnish: "Enemmän", english: "More", tip: "Comparative adverb. 'Haluan **enemmän** kahvia.'", level: "A2", id: 'B1_fin_197' },
+    { finnish: "Vähemmän", english: "Less", tip: "Comparative adverb. 'Haluan **vähemmän** vettä.'", level: "A2", id: 'B1_fin_198' },
+    { finnish: "Parhaiten", english: "Best (adverb)", tip: "Superlative form. 'Hän tekee työn **parhaiten**.'", level: "B1", id: 'B1_fin_199' },
+    { finnish: "Huonoiten", english: "Worst (adverb)", tip: "Superlative form.", level: "B1", id: 'B1_fin_200' },
+    { finnish: "Lähes", english: "Nearly / Almost", tip: "Synonym for 'melkein'.", level: "B1", id: 'B1_fin_201' },
+    { finnish: "Tarkasti", english: "Precisely / Accurately", tip: "From '**tarkka**' (precise).", level: "B1", id: 'B1_fin_202' },
+    { finnish: "Luonnollisesti", english: "Naturally", tip: "From '**luonnollinen**' (natural).", level: "B1", id: 'B1_fin_203' },
+    { finnish: "Käytännöllisesti", english: "Practically", tip: "From '**käytännöllinen**' (practical).", level: "B1", id: 'B1_fin_204' },
+    { finnish: "Tieteellisesti", english: "Scientifically", tip: "From '**tieteellinen**' (scientific).", level: "B1", id: 'B1_fin_205' },
+    { finnish: "Riippumatta", english: "Regardless of", tip: "Takes **elative**: '**Sateesta riippumatta**.'", level: "B1", id: 'B1_fin_206' },
+    { finnish: "Sitä paitsi", english: "Besides / Moreover", tip: "Connecting phrase.", level: "B1", id: 'B1_fin_207' },
+    { finnish: "Kun taas", english: "While / Whereas", tip: "Subordinating conjunction used for contrast.", level: "B1", id: 'B1_fin_208' },
+    { finnish: "Niin kauan kuin", english: "As long as", tip: "Phrase expressing duration or condition.", level: "B1", id: 'B1_fin_209' },
+    { finnish: "Paitsi", english: "Except (for)", tip: "Preposition/Postposition. Takes partitive or genitive.", level: "B1", id: 'B1_fin_210' },
+    { finnish: "Jopa", english: "Even (surprisingly)", tip: "Intensifying adverb. 'Hän on **jopa** parempi.'", level: "B1", id: 'B1_fin_211' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not).", level: "B1", id: 'B1_fin_212' },
+    { finnish: "Joko... tai...", english: "Either... or...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_213' },
+    { finnish: "Sekä... että...", english: "Both... and...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_214' },
+    { finnish: "Eikä... eikä...", english: "Neither... nor...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_215' },
+    { finnish: "Kuin", english: "Than (comparison)", tip: "Used in comparative sentences: 'Parempaa **kuin** eilen.'", level: "A2", id: 'B1_fin_216' },
+    { finnish: "Kuten", english: "Such as / Like", tip: "Used for examples.", level: "B1", id: 'B1_fin_217' },
+    { finnish: "Että", english: "That (subordinating conj.)", tip: "Used to introduce a clause: 'Tiedän, **että** se on totta.'", level: "A2", id: 'B1_fin_218' },
+    { finnish: "Jos", english: "If", tip: "Conditional conjunction.", level: "A2", id: 'B1_fin_219' },
+    { finnish: "Vaikka", english: "Although / Even if", tip: "Subordinating conjunction expressing concession.", level: "B1", id: 'B1_fin_220' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_fin_221' },
+    { finnish: "Lisäksi", english: "In addition / Furthermore", tip: "Used to connect ideas.", level: "B1", id: 'B1_fin_222' },
+    { finnish: "Ennen", english: "Before", tip: "Postposition that takes **genitive**: '**Koulun** ennen' (Before school).", level: "B1", id: 'B1_fin_223' },
+    { finnish: "Jälkeen", english: "After", tip: "Postposition that takes **genitive**: '**Työn** jälkeen' (After work).", level: "B1", id: 'B1_fin_224' },
+    { finnish: "Lähellä", english: "Near", tip: "Postposition that takes the **genitive case**: '**Kaupungin** lähellä'.", level: "A2", id: 'B1_fin_225' },
+    { finnish: "Kaukana", english: "Far", tip: "Used with the **elative case (-sta)**: '**Kotoa** kaukana'.", level: "A2", id: 'B1_fin_226' },
+    { finnish: "Vieressä", english: "Next to", tip: "Takes the **genitive case**: '**Oven** vieressä'.", level: "A2", id: 'B1_fin_227' },
+    { finnish: "Kanssa", english: "With", tip: "Postposition that takes the **genitive case**: '**Ystävän** kanssa.'", level: "B1", id: 'B1_fin_228' },
+    { finnish: "Ilman", english: "Without", tip: "Postposition that takes the **partitive case**: '**Ilman rahaa**.'", level: "B1", id: 'B1_fin_229' },
+    { finnish: "Laitos", english: "Institution / Department", tip: "'Tutkimuslaitos' (research institution).", level: "B1", id: 'B1_fin_230' },
+    { finnish: "Väestö", english: "Population", tip: "'**Väestönkasvu**' (population growth).", level: "B1", id: 'B1_fin_231' },
+    { finnish: "Perintö", english: "Inheritance / Heritage", tip: "'Kulttuuriperintö' (cultural heritage).", level: "B1", id: 'B1_fin_232' },
+    { finnish: "Arviointi", english: "Assessment / Evaluation", tip: "From the verb 'arvioida' (to evaluate).", level: "B1", id: 'B1_fin_233' },
+    { finnish: "Tietokanta", english: "Database", tip: "Literally 'knowledge base'.", level: "B1", id: 'B1_fin_234' },
+    { finnish: "Pilvipalvelu", english: "Cloud service", tip: "Literally 'cloud service'.", level: "B1", id: 'B1_fin_235' },
+    { finnish: "Tekoäly", english: "Artificial Intelligence (AI)", tip: "Literally 'artificial knowledge'.", level: "B1", id: 'B1_fin_236' },
+    { finnish: "Tietoturva", english: "Data security", tip: "Literally 'knowledge safety'.", level: "B1", id: 'B1_fin_237' },
+    { finnish: "Liitäntä", english: "Interface / Connector", tip: "Often used for hardware or API connections.", level: "B1", id: 'B1_fin_238' },
+    { finnish: "Yhteenveto", english: "Summary / Conclusion", tip: "Literally 'together-draw'. Used for final remarks.", level: "B1", id: 'B1_fin_239' },
+    { finnish: "Palaute", english: "Feedback", tip: "Partitive: '**palautetta**'. 'Sain hyvää **palautetta**.'", level: "B1", id: 'B1_fin_240' },
+    { finnish: "Asenne", english: "Attitude", tip: "'Positiivinen **asenne**.'", level: "B1", id: 'B1_fin_241' },
+    { finnish: "Osaaminen", english: "Competence / Know-how", tip: "Partitive: '**osaamista**'.", level: "B1", id: 'B1_fin_242' },
+    { finnish: "Johtaminen", english: "Management / Leading", tip: "From the verb 'johtaa' (to lead).", level: "B1", id: 'B1_fin_243' },
+    { finnish: "Kirjanpitäjä", english: "Accountant", tip: "Literally 'book keeper'.", level: "B1", id: 'B1_fin_244' },
+    { finnish: "Mekaanikko", english: "Mechanic", tip: "Someone who fixes machines or vehicles.", level: "B1", id: 'B1_fin_245' },
+    { finnish: "Toimitusjohtaja", english: "CEO", tip: "Literally 'delivery leader'. Used for the company head.", level: "B1", id: 'B1_fin_246' },
+    { finnish: "Lataaja", english: "Loader (Warehouse)", tip: "One who loads. Derived from 'ladata' (to load/charge).", level: "B1", id: 'B1_fin_247' },
+    { finnish: "Trukki", english: "Forklift", tip: "Short for 'haarukkatrukki'.", level: "B1", id: 'B1_fin_248' },
+    { finnish: "Varasto", english: "Warehouse / Storage", tip: "Inessive: '**Varastossa**' (In the warehouse).", level: "A2", id: 'B1_fin_249' },
+    { finnish: "Hylly", english: "Shelf", tip: "Adessive: '**Hyllyllä**' (On the shelf).", level: "A2", id: 'B1_fin_250' },
+    { finnish: "Laatikko", english: "Box / Crate", tip: "Inessive: '**Laatikossa**' (In the box).", level: "A2", id: 'B1_fin_251' },
+    { finnish: "Paketti", english: "Package / Parcel", tip: "'Sain **paketin**.' (I received a package).", level: "A2", id: 'B1_fin_252' },
+    { finnish: "Lähetys", english: "Shipment / Consignment", tip: "'Lähetys on **myöhässä**.' (The shipment is late).", level: "B1", id: 'B1_fin_253' },
+    { finnish: "Vastaanotto", english: "Reception / Receiving", tip: "'Tavaroiden **vastaanotto**.' (Receiving of goods).", level: "B1", id: 'B1_fin_254' },
+    { finnish: "Keräillä", english: "To pick (orders)", tip: "Verb type 3. 'Minä **keräilen tilauksia**.' (I pick orders).", level: "B1", id: 'B1_fin_255' },
+    { finnish: "Kannettava", english: "Laptop", tip: "Short for 'kannettava tietokone' (portable computer).", level: "A2", id: 'B1_fin_256' },
+    { finnish: "Ohjelmisto", english: "Software", tip: "Partitive: '**ohjelmistoa**'.", level: "B1", id: 'B1_fin_257' },
+    { finnish: "Sovellus", english: "Application (App)", tip: "'Lataan **sovelluksen**.' (I am downloading an app).", level: "B1", id: 'B1_fin_258' },
+    { finnish: "Verkko", english: "Network / Web", tip: "'Olen **verkossa**.' (I am online).", level: "B1", id: 'B1_fin_259' },
+    { finnish: "Sairas", english: "Sick / Ill", tip: "'Olen **sairas**.' (I am sick) - used as an adjective.", level: "A2", id: 'B1_fin_260' },
+    { finnish: "Kipu", english: "Pain", tip: "'Minulla on **kipua**.' (I have pain) - partitive case.", level: "B1", id: 'B1_fin_261' },
+    { finnish: "Apteekki", english: "Pharmacy", tip: "Illative: 'Menen **apteekkiin**.'", level: "B1", id: 'B1_fin_262' },
+    { finnish: "Resepti", english: "Prescription / Recipe", tip: "Same word, Finnish spelling.", level: "B1", id: 'B1_fin_263' },
+    { finnish: "Jäte", english: "Waste / Refuse", tip: "More formal than 'roska'.", level: "B1", id: 'B1_fin_264' },
+    { finnish: "Pyyhe", english: "Towel", tip: "'Tarvitsen **pyyhkeen**.' (I need a towel).", level: "A2", id: 'B1_fin_265' },
+    { finnish: "Pyykki", english: "Laundry", tip: "Partitive: '**Pyykkiä** on paljon.' (There is a lot of laundry).", level: "A2", id: 'B1_fin_266' },
+    { finnish: "Imuroida", english: "To vacuum", tip: "Verb type 2. 'Minä **imuroin**.' (I vacuum).", level: "A2", id: 'B1_fin_267' },
+    { finnish: "Pyykätä", english: "To do laundry / To wipe", tip: "Verb type 4. 'Pyykkään **tänään**.' (I do laundry today).", level: "A2", id: 'B1_fin_268' },
+    { finnish: "Tiskata", english: "To wash dishes", tip: "Verb type 4. 'Tiskaan **käsin**.' (I wash dishes by hand).", level: "A2", id: 'B1_fin_269' },
+    { finnish: "Lakaista", english: "To sweep", tip: "Verb type 3. 'Lakaista **lattia**.' (To sweep the floor).", level: "A2", id: 'B1_fin_270' },
+    { finnish: "Leipoa", english: "To bake", tip: "Verb type 1. 'Minä **leivon leipää**.' (I bake bread).", level: "A2", id: 'B1_fin_271' },
+    { finnish: "Keittää", english: "To boil / To cook", tip: "Verb type 1. 'Keitän **vettä**.' (I boil water).", level: "A2", id: 'B1_fin_272' },
+    { finnish: "Paistaa", english: "To fry / To bake / To shine (sun)", tip: "Verb type 1. 'Paistan **kalaa**.' (I fry fish). 'Aurinko **paistaa**.' (The sun shines).", level: "A2", id: 'B1_fin_273' },
+    { finnish: "Sekoittaa", english: "To mix / To stir", tip: "Verb type 1. 'Sekoitan **sokeria kahviin**.' (I stir sugar into coffee).", level: "B1", id: 'B1_fin_274' },
+    { finnish: "Päämäärä", english: "Goal / Objective / Aim", tip: "Synonym for 'tavoite'.", level: "B1", id: 'B1_fin_275' },
+    { finnish: "Suunta", english: "Direction", tip: "Illative: '**Suuntaan**' (to the direction).", level: "B1", id: 'B1_fin_276' },
+    { finnish: "Tapa", english: "Way / Manner / Custom", tip: "Inessive: '**Tavalla**' (in the manner).", level: "B1", id: 'B1_fin_277' },
+    { finnish: "Mieli", english: "Mind / Mood", tip: "'Olen samaa **mieltä**.' (I agree).", level: "B1", id: 'B1_fin_278' },
+    { finnish: "Peruste", english: "Basis / Foundation / Reason", tip: "From '**perusteellinen**' (thorough).", level: "B1", id: 'B1_fin_279' },
+    { finnish: "Vihdoin", english: "Finally", tip: "Adverb: '**Vihdoin** valmis!' (Finally ready!).", level: "B1", id: 'B1_fin_280' },
+    { finnish: "Aluksi", english: "Firstly / At first", tip: "Adverb: '**Aluksi** me menimme...'", level: "B1", id: 'B1_fin_281' },
+    { finnish: "Sittemmin", english: "Later on / Subsequently", tip: "Adverb: '**Sittemmin** hän teki...'", level: "B1", id: 'B1_fin_282' },
+    { finnish: "Päinvastoin", english: "On the contrary", tip: "Adverb used for strong contrast.", level: "B1", id: 'B1_fin_283' },
+    { finnish: "Ainoastaan", english: "Only / Merely", tip: "Synonym for 'vain'.", level: "B1", id: 'B1_fin_284' },
+    { finnish: "Enemmän", english: "More", tip: "Comparative adverb. 'Haluan **enemmän** kahvia.'", level: "A2", id: 'B1_fin_285' },
+    { finnish: "Vähemmän", english: "Less", tip: "Comparative adverb. 'Haluan **vähemmän** vettä.'", level: "A2", id: 'B1_fin_286' },
+    { finnish: "Parhaiten", english: "Best (adverb)", tip: "Superlative form. 'Hän tekee työn **parhaiten**.'", level: "B1", id: 'B1_fin_287' },
+    { finnish: "Huonoiten", english: "Worst (adverb)", tip: "Superlative form.", level: "B1", id: 'B1_fin_288' },
+    { finnish: "Lähes", english: "Nearly / Almost", tip: "Synonym for 'melkein'.", level: "B1", id: 'B1_fin_289' },
+    { finnish: "Tarkasti", english: "Precisely / Accurately", tip: "From '**tarkka**' (precise).", level: "B1", id: 'B1_fin_290' },
+    { finnish: "Luonnollisesti", english: "Naturally", tip: "From '**luonnollinen**' (natural).", level: "B1", id: 'B1_fin_291' },
+    { finnish: "Käytännöllisesti", english: "Practically", tip: "From '**käytännöllinen**' (practical).", level: "B1", id: 'B1_fin_292' },
+    { finnish: "Tieteellisesti", english: "Scientifically", tip: "From '**tieteellinen**' (scientific).", level: "B1", id: 'B1_fin_293' },
+    { finnish: "Riippumatta", english: "Regardless of", tip: "Takes **elative**: '**Sateesta riippumatta**.'", level: "B1", id: 'B1_fin_294' },
+    { finnish: "Sitä paitsi", english: "Besides / Moreover", tip: "Connecting phrase.", level: "B1", id: 'B1_fin_295' },
+    { finnish: "Kun taas", english: "While / Whereas", tip: "Subordinating conjunction used for contrast.", level: "B1", id: 'B1_fin_296' },
+    { finnish: "Niin kauan kuin", english: "As long as", tip: "Phrase expressing duration or condition.", level: "B1", id: 'B1_fin_297' },
+    { finnish: "Paitsi", english: "Except (for)", tip: "Preposition/Postposition. Takes partitive or genitive.", level: "B1", id: 'B1_fin_298' },
+    { finnish: "Jopa", english: "Even (surprisingly)", tip: "Intensifying adverb. 'Hän on **jopa** parempi.'", level: "B1", id: 'B1_fin_299' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not).", level: "B1", id: 'B1_fin_300' },
+    { finnish: "Joko... tai...", english: "Either... or...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_301' },
+    { finnish: "Sekä... että...", english: "Both... and...", level: "B1", id: 'B1_fin_302' },
+    { finnish: "Eikä... eikä...", english: "Neither... nor...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_303' },
+    { finnish: "Kuin", english: "Than (comparison)", tip: "Used in comparative sentences: 'Parempaa **kuin** eilen.'", level: "A2", id: 'B1_fin_304' },
+    { finnish: "Kuten", english: "Such as / Like", tip: "Used for examples.", level: "B1", id: 'B1_fin_305' },
+    { finnish: "Että", english: "That (subordinating conj.)", tip: "Used to introduce a clause: 'Tiedän, **että** se on totta.'", level: "A2", id: 'B1_fin_306' },
+    { finnish: "Jos", english: "If", tip: "Conditional conjunction.", level: "A2", id: 'B1_fin_307' },
+    { finnish: "Vaikka", english: "Although / Even if", tip: "Subordinating conjunction expressing concession.", level: "B1", id: 'B1_fin_308' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_fin_309' },
+    { finnish: "Lisäksi", english: "In addition / Furthermore", tip: "Used to connect ideas.", level: "B1", id: 'B1_fin_310' },
+    { finnish: "Ennen", english: "Before", tip: "Postposition that takes **genitive**: '**Koulun** ennen' (Before school).", level: "B1", id: 'B1_fin_311' },
+    { finnish: "Jälkeen", english: "After", tip: "Postposition that takes **genitive**: '**Työn** jälkeen' (After work).", level: "B1", id: 'B1_fin_312' },
+    { finnish: "Lähellä", english: "Near", tip: "Postposition that takes the **genitive case**: '**Kaupungin** lähellä'.", level: "A2", id: 'B1_fin_313' },
+    { finnish: "Kaukana", english: "Far", tip: "Used with the **elative case (-sta)**: '**Kotoa** kaukana'.", level: "A2", id: 'B1_fin_314' },
+    { finnish: "Vieressä", english: "Next to", tip: "Takes the **genitive case**: '**Oven** vieressä'.", level: "A2", id: 'B1_fin_315' },
+    { finnish: "Kanssa", english: "With", tip: "Postposition that takes the **genitive case**: '**Ystävän** kanssa.'", level: "B1", id: 'B1_fin_316' },
+    { finnish: "Ilman", english: "Without", tip: "Postposition that takes the **partitive case**: '**Ilman rahaa**.'", level: "B1", id: 'B1_fin_317' },
+    { finnish: "Laitos", english: "Institution / Department", tip: "'Tutkimuslaitos' (research institution).", level: "B1", id: 'B1_fin_318' },
+    { finnish: "Väestö", english: "Population", tip: "'**Väestönkasvu**' (population growth).", level: "B1", id: 'B1_fin_319' },
+    { finnish: "Perintö", english: "Inheritance / Heritage", tip: "'Kulttuuriperintö' (cultural heritage).", level: "B1", id: 'B1_fin_320' },
+    { finnish: "Arviointi", english: "Assessment / Evaluation", tip: "From the verb 'arvioida' (to evaluate).", level: "B1", id: 'B1_fin_321' },
+    { finnish: "Tietokanta", english: "Database", tip: "Literally 'knowledge base'.", level: "B1", id: 'B1_fin_322' },
+    { finnish: "Pilvipalvelu", english: "Cloud service", tip: "Literally 'cloud service'.", level: "B1", id: 'B1_fin_323' },
+    { finnish: "Tekoäly", english: "Artificial Intelligence (AI)", tip: "Literally 'artificial knowledge'.", level: "B1", id: 'B1_fin_324' },
+    { finnish: "Tietoturva", english: "Data security", tip: "Literally 'knowledge safety'.", level: "B1", id: 'B1_fin_325' },
+    { finnish: "Liitäntä", english: "Interface / Connector", tip: "Often used for hardware or API connections.", level: "B1", id: 'B1_fin_326' },
+    { finnish: "Yhteenveto", english: "Summary / Conclusion", tip: "Literally 'together-draw'. Used for final remarks.", level: "B1", id: 'B1_fin_327' },
+    { finnish: "Palaute", english: "Feedback", tip: "Partitive: '**palautetta**'. 'Sain hyvää **palautetta**.'", level: "B1", id: 'B1_fin_328' },
+    { finnish: "Asenne", english: "Attitude", tip: "'Positiivinen **asenne**.'", level: "B1", id: 'B1_fin_329' },
+    { finnish: "Osaaminen", english: "Competence / Know-how", tip: "Partitive: '**osaamista**'.", level: "B1", id: 'B1_fin_330' },
+    { finnish: "Johtaminen", english: "Management / Leading", tip: "From the verb 'johtaa' (to lead).", level: "B1", id: 'B1_fin_331' },
+    { finnish: "Kirjanpitäjä", english: "Accountant", tip: "Literally 'book keeper'.", level: "B1", id: 'B1_fin_332' },
+    { finnish: "Mekaanikko", english: "Mechanic", tip: "Someone who fixes machines or vehicles.", level: "B1", id: 'B1_fin_333' },
+    { finnish: "Toimitusjohtaja", english: "CEO", tip: "Literally 'delivery leader'. Used for the company head.", level: "B1", id: 'B1_fin_334' },
+    { finnish: "Lataaja", english: "Loader (Warehouse)", tip: "One who loads. Derived from 'ladata' (to load/charge).", level: "B1", id: 'B1_fin_335' },
+    { finnish: "Trukki", english: "Forklift", tip: "Short for 'haarukkatrukki'.", level: "B1", id: 'B1_fin_336' },
+    { finnish: "Varasto", english: "Warehouse / Storage", tip: "Inessive: '**Varastossa**' (In the warehouse).", level: "A2", id: 'B1_fin_337' },
+    { finnish: "Hylly", english: "Shelf", tip: "Adessive: '**Hyllyllä**' (On the shelf).", level: "A2", id: 'B1_fin_338' },
+    { finnish: "Laatikko", english: "Box / Crate", tip: "Inessive: '**Laatikossa**' (In the box).", level: "A2", id: 'B1_fin_339' },
+    { finnish: "Paketti", english: "Package / Parcel", tip: "'Sain **paketin**.' (I received a package).", level: "A2", id: 'B1_fin_340' },
+    { finnish: "Lähetys", english: "Shipment / Consignment", tip: "'Lähetys on **myöhässä**.' (The shipment is late).", level: "B1", id: 'B1_fin_341' },
+    { finnish: "Vastaanotto", english: "Reception / Receiving", tip: "'Tavaroiden **vastaanotto**.' (Receiving of goods).", level: "B1", id: 'B1_fin_342' },
+    { finnish: "Keräillä", english: "To pick (orders)", tip: "Verb type 3. 'Minä **keräilen tilauksia**.' (I pick orders).", level: "B1", id: 'B1_fin_343' },
+    { finnish: "Kannettava", english: "Laptop", tip: "Short for 'kannettava tietokone' (portable computer).", level: "A2", id: 'B1_fin_344' },
+    { finnish: "Ohjelmisto", english: "Software", tip: "Partitive: '**ohjelmistoa**'.", level: "B1", id: 'B1_fin_345' },
+    { finnish: "Sovellus", english: "Application (App)", tip: "'Lataan **sovelluksen**.' (I am downloading an app).", level: "B1", id: 'B1_fin_346' },
+    { finnish: "Verkko", english: "Network / Web", tip: "'Olen **verkossa**.' (I am online).", level: "B1", id: 'B1_fin_347' },
+    { finnish: "Sairas", english: "Sick / Ill", tip: "'Olen **sairas**.' (I am sick) - used as an adjective.", level: "A2", id: 'B1_fin_348' },
+    { finnish: "Kipu", english: "Pain", tip: "'Minulla on **kipua**.' (I have pain) - partitive case.", level: "B1", id: 'B1_fin_349' },
+    { finnish: "Apteekki", english: "Pharmacy", tip: "Illative: 'Menen **apteekkiin**.'", level: "B1", id: 'B1_fin_350' },
+    { finnish: "Resepti", english: "Prescription / Recipe", tip: "Same word, Finnish spelling.", level: "B1", id: 'B1_fin_351' },
+    { finnish: "Jäte", english: "Waste / Refuse", tip: "More formal than 'roska'.", level: "B1", id: 'B1_fin_352' },
+    { finnish: "Pyyhe", english: "Towel", tip: "'Tarvitsen **pyyhkeen**.' (I need a towel).", level: "A2", id: 'B1_fin_353' },
+    { finnish: "Pyykki", english: "Laundry", tip: "Partitive: '**Pyykkiä** on paljon.' (There is a lot of laundry).", level: "A2", id: 'B1_fin_354' },
+    { finnish: "Imuroida", english: "To vacuum", tip: "Verb type 2. 'Minä **imuroin**.' (I vacuum).", level: "A2", id: 'B1_fin_355' },
+    { finnish: "Pyykätä", english: "To do laundry / To wipe", tip: "Verb type 4. 'Pyykkään **tänään**.' (I do laundry today).", level: "A2", id: 'B1_fin_356' },
+    { finnish: "Tiskata", english: "To wash dishes", tip: "Verb type 4. 'Tiskaan **käsin**.' (I wash dishes by hand).", level: "A2", id: 'B1_fin_357' },
+    { finnish: "Lakaista", english: "To sweep", tip: "Verb type 3. 'Lakaista **lattia**.' (To sweep the floor).", level: "A2", id: 'B1_fin_358' },
+    { finnish: "Leipoa", english: "To bake", tip: "Verb type 1. 'Minä **leivon leipää**.' (I bake bread).", level: "A2", id: 'B1_fin_359' },
+    { finnish: "Keittää", english: "To boil / To cook", tip: "Verb type 1. 'Keitän **vettä**.' (I boil water).", level: "A2", id: 'B1_fin_360' },
+    { finnish: "Paistaa", english: "To fry / To bake / To shine (sun)", tip: "Verb type 1. 'Paistan **kalaa**.' (I fry fish). 'Aurinko **paistaa**.' (The sun shines).", level: "A2", id: 'B1_fin_361' },
+    { finnish: "Sekoittaa", english: "To mix / To stir", tip: "Verb type 1. 'Sekoitan **sokeria kahviin**.' (I stir sugar into coffee).", level: "B1", id: 'B1_fin_362' },
+    { finnish: "Päämäärä", english: "Goal / Objective / Aim", tip: "Synonym for 'tavoite'.", level: "B1", id: 'B1_fin_363' },
+    { finnish: "Suunta", english: "Direction", tip: "Illative: '**Suuntaan**' (to the direction).", level: "B1", id: 'B1_fin_364' },
+    { finnish: "Tapa", english: "Way / Manner / Custom", tip: "Inessive: '**Tavalla**' (in the manner).", level: "B1", id: 'B1_fin_365' },
+    { finnish: "Mieli", english: "Mind / Mood", tip: "'Olen samaa **mieltä**.' (I agree).", level: "B1", id: 'B1_fin_366' },
+    { finnish: "Peruste", english: "Basis / Foundation / Reason", tip: "From '**perusteellinen**' (thorough).", level: "B1", id: 'B1_fin_367' },
+    { finnish: "Vihdoin", english: "Finally", tip: "Adverb: '**Vihdoin** valmis!' (Finally ready!).", level: "B1", id: 'B1_fin_368' },
+    { finnish: "Aluksi", english: "Firstly / At first", tip: "Adverb: '**Aluksi** me menimme...'", level: "B1", id: 'B1_fin_369' },
+    { finnish: "Sittemmin", english: "Later on / Subsequently", tip: "Adverb: '**Sittemmin** hän teki...'", level: "B1", id: 'B1_fin_370' },
+    { finnish: "Päinvastoin", english: "On the contrary", tip: "Adverb used for strong contrast.", level: "B1", id: 'B1_fin_371' },
+    { finnish: "Ainoastaan", english: "Only / Merely", tip: "Synonym for 'vain'.", level: "B1", id: 'B1_fin_372' },
+    { finnish: "Enemmän", english: "More", tip: "Comparative adverb. 'Haluan **enemmän** kahvia.'", level: "A2", id: 'B1_fin_373' },
+    { finnish: "Vähemmän", english: "Less", tip: "Comparative adverb. 'Haluan **vähemmän** vettä.'", level: "A2", id: 'B1_fin_374' },
+    { finnish: "Parhaiten", english: "Best (adverb)", tip: "Superlative form. 'Hän tekee työn **parhaiten**.'", level: "B1", id: 'B1_fin_375' },
+    { finnish: "Huonoiten", english: "Worst (adverb)", tip: "Superlative form.", level: "B1", id: 'B1_fin_376' },
+    { finnish: "Lähes", english: "Nearly / Almost", tip: "Synonym for 'melkein'.", level: "B1", id: 'B1_fin_377' },
+    { finnish: "Tarkasti", english: "Precisely / Accurately", tip: "From '**tarkka**' (precise).", level: "B1", id: 'B1_fin_378' },
+    { finnish: "Luonnollisesti", english: "Naturally", tip: "From '**luonnollinen**' (natural).", level: "B1", id: 'B1_fin_379' },
+    { finnish: "Käytännöllisesti", english: "Practically", tip: "From '**käytännöllinen**' (practical).", level: "B1", id: 'B1_fin_380' },
+    { finnish: "Tieteellisesti", english: "Scientifically", tip: "From '**tieteellinen**' (scientific).", level: "B1", id: 'B1_fin_381' },
+    { finnish: "Riippumatta", english: "Regardless of", tip: "Takes **elative**: '**Sateesta riippumatta**.'", level: "B1", id: 'B1_fin_382' },
+    { finnish: "Sitä paitsi", english: "Besides / Moreover", tip: "Connecting phrase.", level: "B1", id: 'B1_fin_383' },
+    { finnish: "Kun taas", english: "While / Whereas", tip: "Subordinating conjunction used for contrast.", level: "B1", id: 'B1_fin_384' },
+    { finnish: "Niin kauan kuin", english: "As long as", tip: "Phrase expressing duration or condition.", level: "B1", id: 'B1_fin_385' },
+    { finnish: "Paitsi", english: "Except (for)", tip: "Preposition/Postposition. Takes partitive or genitive.", level: "B1", id: 'B1_fin_386' },
+    { finnish: "Jopa", english: "Even (surprisingly)", tip: "Intensifying adverb. 'Hän on **jopa** parempi.'", level: "B1", id: 'B1_fin_387' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not).", level: "B1", id: 'B1_fin_388' },
+    { finnish: "Joko... tai...", english: "Either... or...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_389' },
+    { finnish: "Sekä... että...", english: "Both... and...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_390' },
+    { finnish: "Eikä... eikä...", english: "Neither... nor...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_391' },
+    { finnish: "Kuin", english: "Than (comparison)", tip: "Used in comparative sentences: 'Parempaa **kuin** eilen.'", level: "A2", id: 'B1_fin_392' },
+    { finnish: "Kuten", english: "Such as / Like", tip: "Used for examples.", level: "B1", id: 'B1_fin_393' },
+    { finnish: "Että", english: "That (subordinating conj.)", tip: "Used to introduce a clause: 'Tiedän, **että** se on totta.'", level: "A2", id: 'B1_fin_394' },
+    { finnish: "Jos", english: "If", tip: "Conditional conjunction.", level: "A2", id: 'B1_fin_395' },
+    { finnish: "Vaikka", english: "Although / Even if", tip: "Subordinating conjunction expressing concession.", level: "B1", id: 'B1_fin_396' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_fin_397' },
+    { finnish: "Lisäksi", english: "In addition / Furthermore", tip: "Used to connect ideas.", level: "B1", id: 'B1_fin_398' },
+    { finnish: "Ennen", english: "Before", tip: "Postposition that takes **genitive**: '**Koulun** ennen' (Before school).", level: "B1", id: 'B1_fin_399' },
+    { finnish: "Jälkeen", english: "After", tip: "Postposition that takes **genitive**: '**Työn** jälkeen' (After work).", level: "B1", id: 'B1_fin_400' },
+    { finnish: "Lähellä", english: "Near", tip: "Postposition that takes the **genitive case**: '**Kaupungin** lähellä'.", level: "A2", id: 'B1_fin_401' },
+    { finnish: "Kaukana", english: "Far", tip: "Used with the **elative case (-sta)**: '**Kotoa** kaukana'.", level: "A2", id: 'B1_fin_402' },
+    { finnish: "Vieressä", english: "Next to", tip: "Takes the **genitive case**: '**Oven** vieressä'.", level: "A2", id: 'B1_fin_403' },
+    { finnish: "Kanssa", english: "With", tip: "Postposition that takes the **genitive case**: '**Ystävän** kanssa.'", level: "B1", id: 'B1_fin_404' },
+    { finnish: "Ilman", english: "Without", tip: "Postposition that takes the **partitive case**: '**Ilman rahaa**.'", level: "B1", id: 'B1_fin_405' },
+    { finnish: "Laitos", english: "Institution / Department", tip: "'Tutkimuslaitos' (research institution).", level: "B1", id: 'B1_fin_406' },
+    { finnish: "Väestö", english: "Population", tip: "'**Väestönkasvu**' (population growth).", level: "B1", id: 'B1_fin_407' },
+    { finnish: "Perintö", english: "Inheritance / Heritage", tip: "'Kulttuuriperintö' (cultural heritage).", level: "B1", id: 'B1_fin_408' },
+    { finnish: "Arviointi", english: "Assessment / Evaluation", tip: "From the verb 'arvioida' (to evaluate).", level: "B1", id: 'B1_fin_409' },
+    { finnish: "Tietokanta", english: "Database", tip: "Literally 'knowledge base'.", level: "B1", id: 'B1_fin_410' },
+    { finnish: "Pilvipalvelu", english: "Cloud service", tip: "Literally 'cloud service'.", level: "B1", id: 'B1_fin_411' },
+    { finnish: "Tekoäly", english: "Artificial Intelligence (AI)", tip: "Literally 'artificial knowledge'.", level: "B1", id: 'B1_fin_412' },
+    { finnish: "Tietoturva", english: "Data security", tip: "Literally 'knowledge safety'.", level: "B1", id: 'B1_fin_413' },
+    { finnish: "Liitäntä", english: "Interface / Connector", tip: "Often used for hardware or API connections.", level: "B1", id: 'B1_fin_414' },
+    { finnish: "Yhteenveto", english: "Summary / Conclusion", tip: "Literally 'together-draw'. Used for final remarks.", level: "B1", id: 'B1_fin_415' },
+    { finnish: "Palaute", english: "Feedback", tip: "Partitive: '**palautetta**'. 'Sain hyvää **palautetta**.'", level: "B1", id: 'B1_fin_416' },
+    { finnish: "Asenne", english: "Attitude", tip: "'Positiivinen **asenne**.'", level: "B1", id: 'B1_fin_417' },
+    { finnish: "Osaaminen", english: "Competence / Know-how", tip: "Partitive: '**osaamista**'.", level: "B1", id: 'B1_fin_418' },
+    { finnish: "Johtaminen", english: "Management / Leading", tip: "From the verb 'johtaa' (to lead).", level: "B1", id: 'B1_fin_419' },
+    { finnish: "Kirjanpitäjä", english: "Accountant", tip: "Literally 'book keeper'.", level: "B1", id: 'B1_fin_420' },
+    { finnish: "Mekaanikko", english: "Mechanic", tip: "Someone who fixes machines or vehicles.", level: "B1", id: 'B1_fin_421' },
+    { finnish: "Toimitusjohtaja", english: "CEO", tip: "Literally 'delivery leader'. Used for the company head.", level: "B1", id: 'B1_fin_422' },
+    { finnish: "Lataaja", english: "Loader (Warehouse)", tip: "One who loads. Derived from 'ladata' (to load/charge).", level: "B1", id: 'B1_fin_423' },
+    { finnish: "Trukki", english: "Forklift", tip: "Short for 'haarukkatrukki'.", level: "B1", id: 'B1_fin_424' },
+    { finnish: "Varasto", english: "Warehouse / Storage", tip: "Inessive: '**Varastossa**' (In the warehouse).", level: "A2", id: 'B1_fin_425' },
+    { finnish: "Hylly", english: "Shelf", tip: "Adessive: '**Hyllyllä**' (On the shelf).", level: "A2", id: 'B1_fin_426' },
+    { finnish: "Laatikko", english: "Box / Crate", tip: "Inessive: '**Laatikossa**' (In the box).", level: "A2", id: 'B1_fin_427' },
+    { finnish: "Paketti", english: "Package / Parcel", tip: "'Sain **paketin**.' (I received a package).", level: "A2", id: 'B1_fin_428' },
+    { finnish: "Lähetys", english: "Shipment / Consignment", tip: "'Lähetys on **myöhässä**.' (The shipment is late).", level: "B1", id: 'B1_fin_429' },
+    { finnish: "Vastaanotto", english: "Reception / Receiving", tip: "'Tavaroiden **vastaanotto**.' (Receiving of goods).", level: "B1", id: 'B1_fin_430' },
+    { finnish: "Keräillä", english: "To pick (orders)", tip: "Verb type 3. 'Minä **keräilen tilauksia**.' (I pick orders).", level: "B1", id: 'B1_fin_431' },
+    { finnish: "Kannettava", english: "Laptop", tip: "Short for 'kannettava tietokone' (portable computer).", level: "A2", id: 'B1_fin_432' },
+    { finnish: "Ohjelmisto", english: "Software", tip: "Partitive: '**ohjelmistoa**'.", level: "B1", id: 'B1_fin_433' },
+    { finnish: "Sovellus", english: "Application (App)", tip: "'Lataan **sovelluksen**.' (I am downloading an app).", level: "B1", id: 'B1_fin_434' },
+    { finnish: "Verkko", english: "Network / Web", tip: "'Olen **verkossa**.' (I am online).", level: "B1", id: 'B1_fin_435' },
+    { finnish: "Sairas", english: "Sick / Ill", tip: "'Olen **sairas**.' (I am sick) - used as an adjective.", level: "A2", id: 'B1_fin_436' },
+    { finnish: "Kipu", english: "Pain", tip: "'Minulla on **kipua**.' (I have pain) - partitive case.", level: "B1", id: 'B1_fin_437' },
+    { finnish: "Apteekki", english: "Pharmacy", tip: "Illative: 'Menen **apteekkiin**.'", level: "B1", id: 'B1_fin_438' },
+    { finnish: "Resepti", english: "Prescription / Recipe", tip: "Same word, Finnish spelling.", level: "B1", id: 'B1_fin_439' },
+    { finnish: "Jäte", english: "Waste / Refuse", tip: "More formal than 'roska'.", level: "B1", id: 'B1_fin_440' },
+    { finnish: "Pyyhe", english: "Towel", tip: "'Tarvitsen **pyyhkeen**.' (I need a towel).", level: "A2", id: 'B1_fin_441' },
+    { finnish: "Pyykki", english: "Laundry", tip: "Partitive: '**Pyykkiä** on paljon.' (There is a lot of laundry).", level: "A2", id: 'B1_fin_442' },
+    { finnish: "Imuroida", english: "To vacuum", tip: "Verb type 2. 'Minä **imuroin**.' (I vacuum).", level: "A2", id: 'B1_fin_443' },
+    { finnish: "Pyykätä", english: "To do laundry / To wipe", tip: "Verb type 4. 'Pyykkään **tänään**.' (I do laundry today).", level: "A2", id: 'B1_fin_444' },
+    { finnish: "Tiskata", english: "To wash dishes", tip: "Verb type 4. 'Tiskaan **käsin**.' (I wash dishes by hand).", level: "A2", id: 'B1_fin_445' },
+    { finnish: "Lakaista", english: "To sweep", tip: "Verb type 3. 'Lakaista **lattia**.' (To sweep the floor).", level: "A2", id: 'B1_fin_446' },
+    { finnish: "Leipoa", english: "To bake", tip: "Verb type 1. 'Minä **leivon leipää**.' (I bake bread).", level: "A2", id: 'B1_fin_447' },
+    { finnish: "Keittää", english: "To boil / To cook", tip: "Verb type 1. 'Keitän **vettä**.' (I boil water).", level: "A2", id: 'B1_fin_448' },
+    { finnish: "Paistaa", english: "To fry / To bake / To shine (sun)", tip: "Verb type 1. 'Paistan **kalaa**.' (I fry fish). 'Aurinko **paistaa**.' (The sun shines).", level: "A2", id: 'B1_fin_449' },
+    { finnish: "Sekoittaa", english: "To mix / To stir", tip: "Verb type 1. 'Sekoitan **sokeria kahviin**.' (I stir sugar into coffee).", level: "B1", id: 'B1_fin_450' },
+    { finnish: "Päämäärä", english: "Goal / Objective / Aim", tip: "Synonym for 'tavoite'.", level: "B1", id: 'B1_fin_451' },
+    { finnish: "Suunta", english: "Direction", tip: "Illative: '**Suuntaan**' (to the direction).", level: "B1", id: 'B1_fin_452' },
+    { finnish: "Tapa", english: "Way / Manner / Custom", tip: "Inessive: '**Tavalla**' (in the manner).", level: "B1", id: 'B1_fin_453' },
+    { finnish: "Mieli", english: "Mind / Mood", tip: "'Olen samaa **mieltä**.' (I agree).", level: "B1", id: 'B1_fin_454' },
+    { finnish: "Peruste", english: "Basis / Foundation / Reason", tip: "From '**perusteellinen**' (thorough).", level: "B1", id: 'B1_fin_455' },
+    { finnish: "Vihdoin", english: "Finally", tip: "Adverb: '**Vihdoin** valmis!' (Finally ready!).", level: "B1", id: 'B1_fin_456' },
+    { finnish: "Aluksi", english: "Firstly / At first", tip: "Adverb: '**Aluksi** me menimme...'", level: "B1", id: 'B1_fin_457' },
+    { finnish: "Sittemmin", english: "Later on / Subsequently", tip: "Adverb: '**Sittemmin** hän teki...'", level: "B1", id: 'B1_fin_458' },
+    { finnish: "Päinvastoin", english: "On the contrary", tip: "Adverb used for strong contrast.", level: "B1", id: 'B1_fin_459' },
+    { finnish: "Ainoastaan", english: "Only / Merely", tip: "Synonym for 'vain'.", level: "B1", id: 'B1_fin_460' },
+    { finnish: "Enemmän", english: "More", tip: "Comparative adverb. 'Haluan **enemmän** kahvia.'", level: "A2", id: 'B1_fin_461' },
+    { finnish: "Vähemmän", english: "Less", tip: "Comparative adverb. 'Haluan **vähemmän** vettä.'", level: "A2", id: 'B1_fin_462' },
+    { finnish: "Parhaiten", english: "Best (adverb)", tip: "Superlative form. 'Hän tekee työn **parhaiten**.'", level: "B1", id: 'B1_fin_463' },
+    { finnish: "Huonoiten", english: "Worst (adverb)", tip: "Superlative form.", level: "B1", id: 'B1_fin_464' },
+    { finnish: "Lähes", english: "Nearly / Almost", tip: "Synonym for 'melkein'.", level: "B1", id: 'B1_fin_465' },
+    { finnish: "Tarkasti", english: "Precisely / Accurately", tip: "From '**tarkka**' (precise).", level: "B1", id: 'B1_fin_466' },
+    { finnish: "Luonnollisesti", english: "Naturally", tip: "From '**luonnollinen**' (natural).", level: "B1", id: 'B1_fin_467' },
+    { finnish: "Käytännöllisesti", english: "Practically", tip: "From '**käytännöllinen**' (practical).", level: "B1", id: 'B1_fin_468' },
+    { finnish: "Tieteellisesti", english: "Scientifically", tip: "From '**tieteellinen**' (scientific).", level: "B1", id: 'B1_fin_469' },
+    { finnish: "Riippumatta", english: "Regardless of", tip: "Takes **elative**: '**Sateesta riippumatta**.'", level: "B1", id: 'B1_fin_470' },
+    { finnish: "Sitä paitsi", english: "Besides / Moreover", tip: "Connecting phrase.", level: "B1", id: 'B1_fin_471' },
+    { finnish: "Kun taas", english: "While / Whereas", tip: "Subordinating conjunction used for contrast.", level: "B1", id: 'B1_fin_472' },
+    { finnish: "Niin kauan kuin", english: "As long as", tip: "Phrase expressing duration or condition.", level: "B1", id: 'B1_fin_473' },
+    { finnish: "Paitsi", english: "Except (for)", tip: "Preposition/Postposition. Takes partitive or genitive.", level: "B1", id: 'B1_fin_474' },
+    { finnish: "Jopa", english: "Even (surprisingly)", tip: "Intensifying adverb. 'Hän on **jopa** parempi.'", level: "B1", id: 'B1_fin_475' },
+    { finnish: "Eikä", english: "And not (conjunction)", tip: "Contraction of 'ja ei' (and not).", level: "B1", id: 'B1_fin_476' },
+    { finnish: "Joko... tai...", english: "Either... or...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_477' },
+    { finnish: "Sekä... että...", english: "Both... and...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_478' },
+    { finnish: "Eikä... eikä...", english: "Neither... nor...", tip: "Correlative conjunctions.", level: "B1", id: 'B1_fin_479' },
+    { finnish: "Kuin", english: "Than (comparison)", tip: "Used in comparative sentences: 'Parempaa **kuin** eilen.'", level: "A2", id: 'B1_fin_480' },
+    { finnish: "Kuten", english: "Such as / Like", tip: "Used for examples.", level: "B1", id: 'B1_fin_481' },
+    { finnish: "Että", english: "That (subordinating conj.)", tip: "Used to introduce a clause: 'Tiedän, **että** se on totta.'", level: "A2", id: 'B1_fin_482' },
+    { finnish: "Jos", english: "If", tip: "Conditional conjunction.", level: "A2", id: 'B1_fin_483' },
+    { finnish: "Vaikka", english: "Although / Even if", tip: "Subordinating conjunction expressing concession.", level: "B1", id: 'B1_fin_484' },
+    { finnish: "Siksi", english: "Therefore / That's why", tip: "Used to connect cause and effect.", level: "B1", id: 'B1_fin_485' },
+    { finnish: "Lisäksi", english: "In addition / Furthermore", tip: "Used to connect ideas.", level: "B1", id: 'B1_fin_486' },
+    { finnish: "Ennen", english: "Before", tip: "Postposition that takes **genitive**: '**Koulun** ennen' (Before school).", level: "B1", id: 'B1_fin_487' },
+    { finnish: "Jälkeen", english: "After", tip: "Postposition that takes **genitive**: '**Työn** jälkeen' (After work).", level: "B1", id: 'B1_fin_488' },
+    { finnish: "Lähellä", english: "Near", tip: "Postposition that takes the **genitive case**: '**Kaupungin** lähellä'.", level: "A2", id: 'B1_fin_489' },
+    { finnish: "Kaukana", english: "Far", tip: "Used with the **elative case (-sta)**: '**Kotoa** kaukana'.", level: "A2", id: 'B1_fin_490' },
+    { finnish: "Vieressä", english: "Next to", tip: "Takes the **genitive case**: '**Oven** vieressä'.", level: "A2", id: 'B1_fin_491' },
+    { finnish: "Kanssa", english: "With", tip: "Postposition that takes the **genitive case**: '**Ystävän** kanssa.'", level: "B1", id: 'B1_fin_492' },
+    { finnish: "Ilman", english: "Without", tip: "Postposition that takes the **partitive case**: '**Ilman rahaa**.'", level: "B1", id: 'B1_fin_493' },
+    { finnish: "Laitos", english: "Institution / Department", tip: "'Tutkimuslaitos' (research institution).", level: "B1", id: 'B1_fin_494' },
+    { finnish: "Väestö", english: "Population", tip: "'**Väestönkasvu**' (population growth).", level: "B1", id: 'B1_fin_495' },
+    { finnish: "Perintö", english: "Inheritance / Heritage", tip: "'Kulttuuriperintö' (cultural heritage).", level: "B1", id: 'B1_fin_496' },
+    { finnish: "Arviointi", english: "Assessment / Evaluation", tip: "From the verb 'arvioida' (to evaluate).", level: "B1", id: 'B1_fin_497' },
+    { finnish: "Tietokanta", english: "Database", tip: "Literally 'knowledge base'.", level: "B1", id: 'B1_fin_498' },
+    { finnish: "Pilvipalvelu", english: "Cloud service", tip: "Literally 'cloud service'.", level: "B1", id: 'B1_fin_499' },
+    { finnish: "Tekoäly", english: "Artificial Intelligence (AI)", tip: "Literally 'artificial knowledge'.", level: "B1", id: 'B1_fin_500' },
+
+
+    
+];
+
+        // --- 2. STATE MANAGEMENT ---
+        let currentDeck = [];
+        let learnedCards = [];
+        let reviewCards = [];
+        let currentCardIndex = 0;
+        let isCardFlipped = false;
+        let isSessionActive = false;
+        
+        // Ensure all cards have unique IDs for management (we pre-populated them but it's good practice)
+        FINNISH_VOCAB.forEach((card, index) => card.id = card.id || 'card_' + index);
+
+        // --- 3. LOCAL STORAGE MANAGEMENT ---
+
+        /** Saves the current learned and review lists to local storage. */
+        function saveProgress() {
+            localStorage.setItem('learnedCards', JSON.stringify(learnedCards.map(c => c.id)));
+            localStorage.setItem('reviewCards', JSON.stringify(reviewCards.map(c => c.id)));
+        }
+
+        /** Loads saved progress from local storage on initialization. */
+        function loadProgress() {
+            const learnedIds = JSON.parse(localStorage.getItem('learnedCards') || '[]');
+            const reviewIds = JSON.parse(localStorage.getItem('reviewCards') || '[]');
+            
+            // Map IDs back to full card objects
+            learnedCards = FINNISH_VOCAB.filter(card => learnedIds.includes(card.id));
+            reviewCards = FINNISH_VOCAB.filter(card => reviewIds.includes(card.id));
+            
+            // Remove any card from reviewCards if it was accidentally marked as learned.
+            reviewCards = reviewCards.filter(card => !learnedIds.includes(card.id));
+        }
+		
+		// --- New Function to clear the Learned list and reset the session ---
+		function resetLearnedWords() {
+			// Get a reference to the modal header's reset button if it exists
+			const resetButton = document.getElementById('reset-learned-btn');
+			if (resetButton) {
+				resetButton.disabled = true; // Disable button immediately to prevent double-click
+				resetButton.textContent = 'Resetting...';
+			}
+
+			const count = learnedCards.length;
+			if (count === 0) {
+				showTemporaryStatus("No words in the Learned list to reset.", false);
+				closeModal();
+				return;
+			}
+
+			// 1. Clear the learned cards array
+			learnedCards = []; 
+			
+			// 2. Save the new state
+			saveProgress();    
+			
+			// 3. Update the UI
+			updateScoreboard(); 
+			closeModal();      
+			
+			// 4. Restart the session structure to ensure all words are included in the next shuffle
+			initializeSession(); 
+
+			showTemporaryStatus(`🔄 Successfully moved ${count} words back to the main deck for review!`, true);
+		}
+		// Ensure this function is globally accessible if it's not already:
+		window.resetLearnedWords = resetLearnedWords;
+        
+        // --- 4. DOM ELEMENTS ---
+        const flashcardEl = document.getElementById('flashcard');
+        const cardWordEl = document.getElementById('card-word');
+        const cardTranslationEl = document.getElementById('card-translation');
+        const showAnswerBtn = document.getElementById('show-answer-btn');
+        const gradingControls = document.getElementById('grading-controls');
+        const restartBtn = document.getElementById('restart-btn');
+        const completionMessage = document.getElementById('completion-message');
+        const feedbackMessageEl = document.getElementById('feedback-message');
+        const grammarTipBox = document.getElementById('grammar-tip-box');
+        const grammarTipText = document.getElementById('grammar-tip-text');
+        
+        const scoreCorrectEl = document.getElementById('score-correct');
+        const scoreReviewEl = document.getElementById('score-review');
+        const cardsRemainingEl = document.getElementById('cards-remaining');
+        
+        // NEW: Modal Elements
+        const modalEl = document.getElementById('word-list-modal');
+        const modalTitleEl = document.getElementById('modal-title');
+        const modalContentEl = document.getElementById('modal-content');
+        const statusMessageEl = document.getElementById('status-message');
+
+
+        // --- 5. CORE FUNCTIONS ---
+
+        /** Sets the content of the card faces. */
+        function setCardContent(finnishWord, englishTranslation, tip) {
+            cardWordEl.textContent = finnishWord;
+            cardTranslationEl.textContent = englishTranslation;
+            grammarTipText.textContent = tip || "No tip for this card. Hyvin menee! (It's going well!)"; // Add default tip
+        }
+
+        /** Shuffles the deck using the Fisher-Yates algorithm. */
+        function shuffleDeck(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        /** Updates the scoreboard display. */
+        function updateScoreboard() {
+            scoreCorrectEl.textContent = learnedCards.length;
+            scoreReviewEl.textContent = reviewCards.length;
+
+            let totalRemaining = FINNISH_VOCAB.length - learnedCards.length;
+            
+            if (isSessionActive && currentCardIndex < currentDeck.length) {
+                // In session: show cards left to cycle through in the current session
+                cardsRemainingEl.textContent = currentDeck.length - currentCardIndex;
+            } else {
+                // Not in session: show total cards NOT yet learned.
+                cardsRemainingEl.textContent = totalRemaining;
+            }
+
+            // Handle session completion visualization
+            if (totalRemaining === 0) {
+                 cardsRemainingEl.textContent = 0;
+                 showAnswerBtn.classList.add('hidden');
+                 completionMessage.classList.remove('hidden');
+                 setCardContent("Kaikki Opittu!", "All Learned!", "Congratulations on mastering the entire vocabulary list! Valmista!");
+                 restartBtn.textContent = "Start Again (Full Reset)";
+            }
+        }
+
+        /** Displays the current card's word on the front. */
+        function displayCurrentCard() {
+            if (currentCardIndex < currentDeck.length) {
+                const card = currentDeck[currentCardIndex];
+                setCardContent(card.finnish, card.english, card.tip); // Use helper function
+                
+                flashcardEl.classList.remove('flipped');
+                isCardFlipped = false;
+                grammarTipBox.classList.add('hidden');
+                
+                showAnswerBtn.textContent = "Show Translation";
+                showAnswerBtn.classList.remove('hidden');
+                gradingControls.classList.add('hidden');
+                
+            } else {
+                isSessionActive = false;
+                showAnswerBtn.classList.add('hidden');
+                gradingControls.classList.add('hidden');
+                restartBtn.classList.remove('hidden');
+                completionMessage.classList.remove('hidden');
+                grammarTipBox.classList.add('hidden');
+                
+                setCardContent("Session Ended! 🥳", "Click Restart to continue your journey!", ""); // Use helper function
+            }
+            updateScoreboard();
+        }
+
+        /** Handles the card flip mechanism. */
+		function flipCard() {
+			if (!isSessionActive) {
+				// Case 1: On the first click, initialize the session
+				initializeSession();
+				// Execution continues to the flip logic below
+			}
+    
+		// This runs immediately after init, and on subsequent 'Show Translation' clicks.
+		if (isSessionActive) {
+			if (!isCardFlipped) {
+            // Case 2: Flip from Front to Back
+            flashcardEl.classList.add('flipped');
+            isCardFlipped = true;
+            showAnswerBtn.classList.add('hidden');
+            gradingControls.classList.remove('hidden');
+            grammarTipBox.classList.remove('hidden'); // Show tip if available
+            
+			} else {
+            // Case 3: Flip from Back to Front (NEW LOGIC)
+            flashcardEl.classList.remove('flipped');
+            isCardFlipped = false;
+            showAnswerBtn.classList.remove('hidden');
+            showAnswerBtn.textContent = "Show Translation"; // Reset button text
+            gradingControls.classList.add('hidden');
+            grammarTipBox.classList.add('hidden');
+        }
+    }
+}
+
+        /** Moves to the next card after grading. */
+        function nextCard(isCorrect) {
+            if (currentCardIndex < currentDeck.length) {
+                const card = currentDeck[currentCardIndex];
+                
+                // Add card to respective score piles
+                if (isCorrect) {
+                    // Remove from review list if it was there
+                    const reviewIndex = reviewCards.findIndex(c => c.id === card.id);
+                    if(reviewIndex !== -1) {
+                         reviewCards.splice(reviewIndex, 1);
+                    }
+                    // Add to learned list if it's not already there
+                    if(learnedCards.findIndex(c => c.id === card.id) === -1) {
+                        learnedCards.push(card);
+                    }
+                    showFeedback('✅ Oikein!', 'text-learned-green');
+                } else {
+                    // Add to review only if not already present AND not learned
+                    if(learnedCards.findIndex(c => c.id === card.id) === -1 && reviewCards.findIndex(c => c.id === card.id) === -1) {
+                        reviewCards.push(card);
+                    }
+                    showFeedback('❌ Harjoitus', 'text-review-red');
+                }
+                
+                // Save progress immediately after grading
+                saveProgress();
+
+                currentCardIndex++;
+                displayCurrentCard();
+            }
+        }
+
+        /** Displays a quick pop-up feedback message. */
+        function showFeedback(message, colorClass) {
+            feedbackMessageEl.textContent = message;
+            feedbackMessageEl.className = `absolute z-10 text-6xl font-black ${colorClass} opacity-0 pointer-events-none`;
+            
+            const rect = flashcardEl.getBoundingClientRect();
+            feedbackMessageEl.style.top = `${rect.top + rect.height / 2}px`;
+            feedbackMessageEl.style.left = `${rect.left + rect.width / 2}px`;
+            feedbackMessageEl.style.transform = 'translate(-50%, -50%)';
+
+            void feedbackMessageEl.offsetWidth;
+            feedbackMessageEl.classList.add('correct-feedback');
+
+            setTimeout(() => {
+                feedbackMessageEl.classList.remove('correct-feedback');
+            }, 600);
+        }
+
+        /** Initializes or resets the entire flashcard session. */
+        function initializeSession() {
+            currentCardIndex = 0;
+            isCardFlipped = false;
+            isSessionActive = true;
+            restartBtn.textContent = "Restart Session (New Cards)";
+
+
+            // Determine the cards not yet learned
+            const learnedIds = new Set(learnedCards.map(c => c.id));
+            let startingDeck = FINNISH_VOCAB.filter(card => !learnedIds.has(card.id));
+            
+            // OPTION 1: Prioritize review cards if the main deck is getting small
+            if (startingDeck.length < 50 && reviewCards.length > 0) {
+                 // Add review cards to the deck to be recycled
+                 startingDeck = startingDeck.concat(reviewCards);
+                 showTemporaryStatus(`Starting mixed session! Including ${reviewCards.length} cards marked for review.`, true);
+            }
+            
+            // OPTION 2: Full reset if all cards are learned
+            if (startingDeck.length === 0 && FINNISH_VOCAB.length > 0) {
+                 startingDeck = [...FINNISH_VOCAB];
+                 learnedCards = [];
+                 reviewCards = [];
+                 localStorage.clear();
+                 showTemporaryStatus("Progress reset! Starting fresh session with ALL cards.", true);
+                 restartBtn.textContent = "Restart Session (Full Reset)";
+            }
+            
+            currentDeck = shuffleDeck(startingDeck);
+            
+            flashcardEl.classList.remove('flipped');
+            completionMessage.classList.add('hidden');
+            restartBtn.classList.add('hidden');
+            grammarTipBox.classList.add('hidden');
+            
+            displayCurrentCard();
+        }
+        
+        /** Displays a temporary status message */
+        function showTemporaryStatus(message, isSuccess = true) {
+            // Remove previous animation classes
+            statusMessageEl.classList.remove('opacity-0', 'status-visible', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            
+            // Update classes for color
+            statusMessageEl.classList.add(isSuccess ? 'bg-green-100' : 'bg-red-100');
+            statusMessageEl.classList.add(isSuccess ? 'text-green-700' : 'text-red-700');
+            statusMessageEl.textContent = message;
+
+            // Force reflow and start animation
+            void statusMessageEl.offsetWidth;
+            statusMessageEl.classList.add('status-visible');
+        }
+
+
+        // --- 6. MODAL FUNCTIONS ---
+
+        /** Generates HTML for a single card row in the modal. */
+        function createCardRowHtml(card, type) {
+            let actions = '';
+            if (type === 'review') {
+                actions = `
+                    <button class="text-xs font-semibold py-1 px-3 bg-learned-green text-white rounded-full hover:bg-green-600 transition duration-100" onclick="moveCard('${card.id}', 'learned')">
+                        Mark Learned
+                    </button>
+                    <button class="text-xs font-semibold py-1 px-3 bg-finnish-blue text-white rounded-full hover:bg-blue-700 transition duration-100" onclick="moveCard('${card.id}', 'remaining')">
+                        Re-Add to Deck
+                    </button>
+                `;
+            } else if (type === 'learned') {
+                actions = `
+                    <button class="text-xs font-semibold py-1 px-3 bg-review-red text-white rounded-full hover:bg-red-600 transition duration-100" onclick="moveCard('${card.id}', 'review')">
+                        Needs Review
+                    </button>
+                `;
+            } else if (type === 'remaining') {
+                actions = `
+                    <button class="text-xs font-semibold py-1 px-3 bg-learned-green text-white rounded-full hover:bg-green-600 transition duration-100" onclick="moveCard('${card.id}', 'learned')">
+                        Mark Learned
+                    </button>
+                `;
+            }
+            
+            const colorClass = type === 'learned' ? 'border-learned-green' : (type === 'review' ? 'border-review-red' : 'border-finnish-blue');
+
+            return `
+                <div id="modal-card-${card.id}" class="p-3 border-l-4 ${colorClass} bg-gray-50 rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <div>
+                        <p class="text-xl font-bold text-gray-800">${card.finnish}</p>
+                        <p class="text-sm text-gray-600 italic">${card.english}</p>
+                    </div>
+                    <div class="flex space-x-2 mt-2 sm:mt-0">
+                        ${actions}
+                    </div>
+                </div>
+            `;
+        }
+
+        /** Populates and shows the modal based on the list type. */
+        /** Populates and shows the modal based on the list type, and manages the 'Reset' button. */
+		function showCardList(type) {
+			let list = [];
+			let title = '';
+
+			// 1. Determine which list to display
+			if (type === 'learned') {
+				list = learnedCards;
+				title = 'Learned Vocabulary (Oikein)';
+			} else if (type === 'review') {
+				list = reviewCards;
+				title = 'Words Needing Review (Harjoitus)';
+			} else if (type === 'remaining') {
+				// 'Remaining' is calculated by filtering FINNISH_VOCAB
+				const learnedIds = new Set(learnedCards.map(c => c.id));
+				const reviewIds = new Set(reviewCards.map(c => c.id));
+				
+				// Get all cards that are not in the learned or review lists
+				// Note: I'm including review cards here as "remaining" should show only untouched words.
+				// Based on your original logic:
+				list = FINNISH_VOCAB.filter(card => !learnedIds.has(card.id));
+				title = 'Untouched Vocabulary (Jäljellä)';
+			}
+
+			// 2. Set modal content
+			modalTitleEl.textContent = title;
+			modalContentEl.innerHTML = ''; // Clear previous content
+
+			// =========================================================================
+			// *** NEW LOGIC: Inject/Manage the Reset button ***
+			const modalHeader = document.querySelector('#word-list-modal > div > .sticky');
+			let resetButton = document.getElementById('reset-learned-btn');
+			
+			if (type === 'learned' && list.length > 0) {
+				if (!resetButton) {
+					// Create button if it doesn't exist
+					resetButton = document.createElement('button');
+					resetButton.id = 'reset-learned-btn';
+					resetButton.className = 'py-2 px-4 text-white bg-review-red rounded-xl font-semibold shadow-md hover:bg-red-600 transition duration-150 transform active:scale-95 text-sm ml-auto';
+					resetButton.textContent = 'Reset All Learned';
+					resetButton.onclick = resetLearnedWords;
+					
+					// Insert the button before the close button (assuming close button is the last child)
+					modalHeader.insertBefore(resetButton, modalHeader.lastElementChild);
+				} else {
+					 // If button exists, ensure it's enabled and has the correct text
+					 resetButton.disabled = false;
+					 resetButton.textContent = 'Reset All Learned';
+				}
+				resetButton.classList.remove('hidden'); // Show it
+			} else if (resetButton) {
+				 resetButton.classList.add('hidden'); // Hide it for other tabs
+			}
+			// =========================================================================
+
+			if (list.length === 0) {
+				modalContentEl.innerHTML = `<p class="text-center py-8 text-gray-500">No cards in this category yet. Keep practicing!</p>`;
+			} else {
+				list.sort((a, b) => a.finnish.localeCompare(b.finnish)); // Sort alphabetically
+				list.forEach(card => {
+					modalContentEl.innerHTML += createCardRowHtml(card, type);
+				});
+			}
+
+			// 3. Show modal
+			modalEl.classList.remove('hidden');
+		}
+        
+        /** Closes the modal. */
+        function closeModal() {
+            modalEl.classList.add('hidden');
+        }
+
+        /** Moves a card between lists. */
+        function moveCard(cardId, destinationType) {
+            const card = FINNISH_VOCAB.find(c => c.id === cardId);
+            if (!card) return;
+
+            // Remove from all potential source lists (safe guard)
+            learnedCards = learnedCards.filter(c => c.id !== cardId);
+            reviewCards = reviewCards.filter(c => c.id !== cardId);
+            
+            let message = '';
+            let isSuccess = false;
+
+            // Add to destination list
+            if (destinationType === 'learned') {
+                learnedCards.push(card);
+                message = `✅ '${card.finnish}' marked as LEARNED.`;
+                isSuccess = true;
+            } else if (destinationType === 'review') {
+                reviewCards.push(card);
+                message = `✏️ '${card.finnish}' moved to REVIEW.`;
+                isSuccess = true;
+            } else if (destinationType === 'remaining') {
+                // If it goes to remaining, we don't add it to either explicit list
+                message = `🔄 '${card.finnish}' re-added to the DECK.`;
+                isSuccess = true;
+            }
+            
+            // Save progress immediately after change
+            saveProgress();
+            
+            // Remove the card visually from the open modal
+            const cardEl = document.getElementById(`modal-card-${cardId}`);
+            if (cardEl) {
+                cardEl.remove();
+            }
+            
+            showTemporaryStatus(message, isSuccess);
+            closeModal(); 
+
+            // Re-initialize the session to reflect the change
+            initializeSession();
+            updateScoreboard(); // Update scores
+        }
+
+
+        // --- 7. INITIALIZATION ---
+
+        // Add event listeners for the grading buttons
+        document.getElementById('needs-review-btn').onclick = () => nextCard(false);
+        document.getElementById('correct-btn').onclick = () => nextCard(true);
+        document.getElementById('restart-btn').onclick = initializeSession;
+        
+        // This button now triggers the entire start sequence.
+        document.getElementById('show-answer-btn').onclick = flipCard;
+
+
+        window.onload = () => {
+            // 1. Load previous session data
+            loadProgress();
+
+            // 2. Initial UI setup
+            setCardContent("Tervetuloa!", "Welcome!", "Click 'Start Learning' to begin your first Finnish session!");
+            updateScoreboard();
+        };
+
+        // Make functions accessible globally for onclick attributes in the modal
+        window.showCardList = showCardList;
+        window.closeModal = closeModal;
+        window.moveCard = moveCard;
+        window.flipCard = flipCard;
+        
+    </script>
+</body>
+</html>
